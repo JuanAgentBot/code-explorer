@@ -157,6 +157,132 @@ textarea.code-input::placeholder {
   padding: 2rem;
 }
 
+.explanation {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border);
+}
+
+.explanation h2 {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+  color: var(--text);
+}
+
+.explanation h3 {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  margin: 1.5rem 0 0.5rem;
+  color: var(--text);
+}
+
+.explanation p,
+.explanation li {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.explanation ul,
+.explanation ol {
+  padding-left: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.explanation li {
+  margin-bottom: 0.25rem;
+}
+
+.explanation code {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+  color: var(--text);
+}
+
+.explanation .cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.explanation .col {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+
+.explanation .col h3 {
+  margin-top: 0;
+}
+
+.explanation .step-list {
+  counter-reset: step;
+  list-style: none;
+  padding-left: 0;
+}
+
+.explanation .step-list li {
+  counter-increment: step;
+  padding-left: 2rem;
+  position: relative;
+  margin-bottom: 0.5rem;
+}
+
+.explanation .step-list li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0.1em;
+  width: 1.4em;
+  height: 1.4em;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  color: white;
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.explanation .edge-legend {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0;
+}
+
+.explanation .edge-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.explanation .edge-legend-item .swatch {
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.explanation .edge-legend-item .swatch-dashed {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--green) 0,
+    var(--green) 6px,
+    transparent 6px,
+    transparent 9px
+  );
+}
+
 @media (max-width: 768px) {
   .editor-panel {
     grid-template-columns: 1fr;
@@ -164,5 +290,8 @@ textarea.code-input::placeholder {
   }
   .panel {
     min-height: 300px;
+  }
+  .explanation .cols {
+    grid-template-columns: 1fr;
   }
 }

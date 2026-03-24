@@ -42,6 +42,129 @@
         </div>
       </div>
     </div>
+      <div class="explanation">
+        <h2>How it works</h2>
+        <div class="cols">
+          <div class="col">
+            <h3>Analysis</h3>
+            <p>
+              Uses the
+              <a href="https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API">TypeScript Compiler API</a>
+              in the browser to build a static call graph. Two-pass approach:
+            </p>
+            <ol class="step-list">
+              <li>
+                <strong>Collect declarations.</strong>
+                Walk the AST and register every function declaration,
+                class method, and arrow function assigned to a
+                <code>const</code>. Each gets a node. Methods are stored
+                as <code>ClassName.methodName</code>.
+              </li>
+              <li>
+                <strong>Find call sites.</strong>
+                For each function body, recursively visit all
+                <code>CallExpression</code> nodes. Extract the callee name
+                from the expression: plain identifiers
+                (<code>foo()</code>), property access
+                (<code>obj.bar()</code>), and <code>this.method()</code>
+                (resolved to the enclosing class).
+              </li>
+              <li>
+                <strong>Match to known functions.</strong>
+                Each call is matched against the set of known declarations.
+                Both exact (<code>foo</code>) and suffix
+                (<code>*.foo</code>) matching is used so unqualified
+                method calls resolve correctly.
+              </li>
+              <li>
+                Edges are deduplicated. Calls to unknown functions
+                (external, built-in) are discarded.
+              </li>
+            </ol>
+          </div>
+          <div class="col">
+            <h3>Rendering</h3>
+            <p>
+              Nodes are arranged in a circle and connected with curved
+              arrows. All SVG is constructed by hand.
+            </p>
+            <ul>
+              <li>
+                Node positions are computed by distributing them evenly
+                around a circle centered on the viewport.
+              </li>
+              <li>
+                Each node is a circle with a label. Color indicates kind:
+                <span style="color: var(--accent)">purple</span> = function,
+                <span style="color: var(--cyan)">cyan</span> = method,
+                <span style="color: var(--green)">green</span> = arrow function.
+              </li>
+              <li>
+                Edges are quadratic Bezier curves (slightly offset from the
+                straight line) with
+                <span style="color: var(--orange)">orange</span> arrowhead
+                markers. Direction is caller &rarr; callee.
+              </li>
+              <li>
+                Arrow start/end points are offset by the node radius so
+                they connect to the circle edge, not the center.
+              </li>
+            </ul>
+          </div>
+        </div>
+        <h3>Limitations</h3>
+        <ul>
+          <li>
+            <strong>Static analysis only.</strong> Dynamic calls
+            (<code>obj[name]()</code>), callbacks passed as arguments,
+            and higher-order functions are not resolved. Only syntactically
+            visible call expressions are detected.
+          </li>
+          <li>
+            Circular layout works for small-to-medium graphs. Beyond
+            ~20 nodes, labels overlap and edges become hard to follow.
+          </li>
+          <li>
+            Functions nested inside other functions (closures) are not
+            extracted as separate nodes.
+          </li>
+          <li>
+            No cross-file analysis. Everything must be in a single input.
+          </li>
+        </ul>
+        <h3>Stack</h3>
+        <ul>
+          <li>
+            <strong>Parser:</strong>
+            <a href="https://github.com/microsoft/TypeScript">TypeScript Compiler API</a>
+            (syntax-only via <code>createSourceFile</code>)
+          </li>
+          <li>
+            <strong>Rendering:</strong> Raw SVG. Circle layout with
+            trigonometric positioning, quadratic Bezier edges.
+          </li>
+          <li>
+            <strong>Build:</strong>
+            <a href="https://vite.dev">Vite</a>. Same 17 KB bundle.
+          </li>
+        </ul>
+        <h3>How it compares to real tools</h3>
+        <ul>
+          <li>
+            <a href="https://github.com/whyboris/TypeScript-Call-Graph">TypeScript-Call-Graph</a>
+            does the same thing (TS compiler API + function/call extraction)
+            but runs as a Node CLI and outputs Graphviz or Mermaid.
+          </li>
+          <li>
+            <a href="https://github.com/cs-au-dk/jelly">Jelly</a>
+            (academic static analyzer) builds much more precise call graphs
+            using flow analysis, handling dynamic dispatch, higher-order
+            functions, and cross-module resolution. It is the gold standard
+            for JS/TS call graph construction.
+          </li>
+        </ul>
+      </div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/typescript@5.8.3/lib/typescript.min.js"></script>
     <script type="module" src="../src/call-graph.ts"></script>
   </body>

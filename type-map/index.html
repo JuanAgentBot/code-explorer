@@ -42,6 +42,117 @@
         </div>
       </div>
     </div>
+      <div class="explanation">
+        <h2>How it works</h2>
+        <div class="cols">
+          <div class="col">
+            <h3>Analysis</h3>
+            <p>
+              Your code is parsed in the browser using the
+              <a href="https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API">TypeScript Compiler API</a>
+              (<code>typescript</code> 5.8, loaded from CDN). No server, no uploads.
+            </p>
+            <ol class="step-list">
+              <li>
+                <code>ts.createSourceFile</code> parses the input into an AST
+                (Abstract Syntax Tree).
+              </li>
+              <li>
+                First pass collects all top-level declaration names
+                (interfaces, type aliases, classes, enums) into a set.
+              </li>
+              <li>
+                Second pass walks each declaration: extracts members
+                (properties, methods, enum values), and detects relationships
+                by checking heritage clauses (<code>extends</code>,
+                <code>implements</code>) and scanning member type annotations
+                for references to known names.
+              </li>
+              <li>
+                Edges are deduplicated. The result is a graph of nodes
+                (declarations) and edges (relationships).
+              </li>
+            </ol>
+          </div>
+          <div class="col">
+            <h3>Rendering</h3>
+            <p>
+              The diagram is hand-built SVG with no chart library. Nodes are
+              placed using a simple grid layout (row-major, max 4 columns).
+            </p>
+            <ul>
+              <li>
+                Each declaration becomes a box. Border color indicates kind:
+                <span style="color: var(--accent)">purple</span> = interface,
+                <span style="color: var(--cyan)">cyan</span> = type alias,
+                <span style="color: var(--pink)">pink</span> = class,
+                <span style="color: var(--orange)">orange</span> = enum.
+              </li>
+              <li>
+                Members are listed inside the box with name and type
+                annotation. Methods show <code>()</code> suffix.
+              </li>
+              <li>
+                Edges are cubic Bezier curves between box centers with
+                SVG marker arrowheads.
+              </li>
+            </ul>
+            <div class="edge-legend">
+              <span class="edge-legend-item">
+                <span class="swatch" style="background: var(--accent)"></span>
+                extends
+              </span>
+              <span class="edge-legend-item">
+                <span class="swatch" style="background: var(--cyan)"></span>
+                implements
+              </span>
+              <span class="edge-legend-item">
+                <span class="swatch swatch-dashed"></span>
+                references (dashed)
+              </span>
+            </div>
+          </div>
+        </div>
+        <h3>Limitations</h3>
+        <ul>
+          <li>
+            Only top-level declarations are extracted. Nested types inside
+            function bodies or namespaces are ignored.
+          </li>
+          <li>
+            Reference detection is name-based string matching on type
+            annotation text, not full type resolution. It can miss generics
+            like <code>Array&lt;User&gt;</code> and may false-positive on
+            substring matches.
+          </li>
+          <li>
+            Layout is a static grid. No edge routing, no overlap avoidance.
+            Large graphs get crowded.
+          </li>
+        </ul>
+        <h3>Stack</h3>
+        <ul>
+          <li>
+            <strong>Parser:</strong>
+            <a href="https://github.com/microsoft/TypeScript">TypeScript Compiler API</a>
+            (syntax-only mode via <code>createSourceFile</code>, no type checker needed)
+          </li>
+          <li>
+            <strong>Rendering:</strong> Raw SVG string construction. No D3,
+            no Mermaid, no chart library.
+          </li>
+          <li>
+            <strong>Layout:</strong> Custom row-major grid. Box sizes computed
+            from member count and text length.
+          </li>
+          <li>
+            <strong>Build:</strong>
+            <a href="https://vite.dev">Vite</a>. 17 KB app bundle
+            + TypeScript compiler from CDN.
+          </li>
+        </ul>
+      </div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/typescript@5.8.3/lib/typescript.min.js"></script>
     <script type="module" src="../src/type-map.ts"></script>
   </body>
