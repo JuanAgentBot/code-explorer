@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>code-explorer</title>
+    <link rel="stylesheet" href="/src/shared/styles.css" />
+    <style>
+      .hero {
+        text-align: center;
+        padding: 4rem 2rem;
+      }
+      .hero h1 {
+        font-family: var(--font-mono);
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+      }
+      .hero h1 span {
+        color: var(--accent);
+      }
+      .hero p {
+        color: var(--text-dim);
+        font-size: 1.1rem;
+        max-width: 600px;
+        margin: 0 auto 3rem;
+      }
+      .prototypes {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 0 2rem 4rem;
+      }
+      .proto-card {
+        background: var(--bg-surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 2rem;
+        transition: border-color 0.2s, transform 0.2s;
+        display: flex;
+        flex-direction: column;
+      }
+      .proto-card:hover {
+        border-color: var(--accent);
+        transform: translateY(-2px);
+      }
+      .proto-card .icon {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+      }
+      .proto-card h2 {
+        font-family: var(--font-mono);
+        font-size: 1.2rem;
+        margin-bottom: 0.5rem;
+      }
+      .proto-card p {
+        color: var(--text-dim);
+        font-size: 0.9rem;
+        flex: 1;
+        margin-bottom: 1.5rem;
+      }
+      .proto-card .badge {
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        padding: 0.2rem 0.6rem;
+        border-radius: 4px;
+        display: inline-block;
+        margin-bottom: 1rem;
+      }
+      .badge-types {
+        background: rgba(192, 132, 252, 0.15);
+        color: var(--accent);
+      }
+      .badge-calls {
+        background: rgba(251, 146, 60, 0.15);
+        color: var(--orange);
+      }
+      .badge-modules {
+        background: rgba(34, 211, 238, 0.15);
+        color: var(--cyan);
+      }
+      .proto-card a {
+        display: inline-block;
+        padding: 0.5rem 1.5rem;
+        border: 1px solid var(--accent);
+        border-radius: 6px;
+        color: var(--accent);
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        text-align: center;
+        transition: background 0.2s;
+      }
+      .proto-card a:hover {
+        background: rgba(192, 132, 252, 0.1);
+        text-decoration: none;
+      }
+      .footer {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-dim);
+        font-size: 0.85rem;
+        border-top: 1px solid var(--border);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hero">
+      <h1><span>&gt;</span> code-explorer</h1>
+      <p>
+        Paste TypeScript code, see diagrams. Three prototypes exploring
+        different ways to visualize code structure. All analysis runs in your
+        browser.
+      </p>
+    </div>
+
+    <div class="prototypes">
+      <div class="proto-card">
+        <div class="icon">◇</div>
+        <span class="badge badge-types">types</span>
+        <h2>Type Map</h2>
+        <p>
+          Extract interfaces, type aliases, classes, and enums. See how they
+          relate through extends, implements, and property references.
+        </p>
+        <a href="type-map/">Try it &rarr;</a>
+      </div>
+
+      <div class="proto-card">
+        <div class="icon">⤳</div>
+        <span class="badge badge-calls">calls</span>
+        <h2>Call Graph</h2>
+        <p>
+          Extract functions, methods, and arrow functions. See which functions
+          call which. Spot the hot paths and dead ends.
+        </p>
+        <a href="call-graph/">Try it &rarr;</a>
+      </div>
+
+      <div class="proto-card">
+        <div class="icon">⬡</div>
+        <span class="badge badge-modules">modules</span>
+        <h2>Module Graph</h2>
+        <p>
+          Define multiple files with their imports and exports. See the
+          dependency structure between modules.
+        </p>
+        <a href="module-graph/">Try it &rarr;</a>
+      </div>
+    </div>
+
+    <div class="footer">
+      Built by <a href="https://github.com/JuanAgentBot">Zero</a> · 
+      <a href="https://github.com/JuanAgentBot/code-explorer">Source</a>
+    </div>
+  </body>
+</html>

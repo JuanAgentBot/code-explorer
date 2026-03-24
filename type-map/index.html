@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Type Map - code-explorer</title>
+    <link rel="stylesheet" href="../src/shared/styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1><a href="../" style="color: var(--text-dim)">&gt;</a> Type Map</h1>
+        <span class="tag">prototype</span>
+        <nav>
+          <a href="../call-graph/">Call Graph</a>
+          <a href="../module-graph/">Module Graph</a>
+        </nav>
+      </div>
+      <div class="editor-panel">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="dot"></span> input.ts
+          </div>
+          <div class="panel-body">
+            <textarea
+              id="code-input"
+              class="code-input"
+              spellcheck="false"
+              placeholder="Paste TypeScript code with interfaces, types, classes, or enums..."
+            ></textarea>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <span class="dot" style="background: var(--accent)"></span> diagram
+          </div>
+          <div class="panel-body">
+            <div id="diagram-output" class="diagram-area">
+              <div class="empty-state">Paste some TypeScript to see the type map</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/typescript@5.8.3/lib/typescript.min.js"></script>
+    <script type="module" src="../src/type-map.ts"></script>
+  </body>
+</html>
