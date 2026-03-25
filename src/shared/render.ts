@@ -311,13 +311,15 @@ export function renderTypeMap(data: TypeMapResult): string {
     const dashArray = edge.kind === "references" ? 'stroke-dasharray="6 3"' : "";
 
     const midY = (y1 + y2) / 2;
-    content += `<path d="M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="1.5" ${dashArray} marker-end="url(#arrowhead-${edge.kind})" opacity="0.7"/>`;
+    content += `<path class="graph-edge" data-edge-from="${escapeHtml(edge.from)}" data-edge-to="${escapeHtml(edge.to)}" d="M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="1.5" ${dashArray} marker-end="url(#arrowhead-${edge.kind})" opacity="0.7"/>`;
   }
 
   // Draw nodes
   for (const node of data.nodes) {
     const ln = layout.get(node.name)!;
     const colors = TYPE_COLORS[node.kind] ?? TYPE_COLORS.interface;
+
+    content += `<g class="graph-node" data-node-id="${escapeHtml(node.name)}" style="cursor:pointer">`;
 
     // Box
     content += `<rect x="${ln.x}" y="${ln.y}" width="${ln.width}" height="${ln.height}" rx="6" fill="${colors.bg}" stroke="${colors.border}" stroke-width="1.5"/>`;
@@ -343,6 +345,8 @@ export function renderTypeMap(data: TypeMapResult): string {
         }
       });
     }
+
+    content += `</g>`;
   }
 
   return createSvgElement(maxX + 40, maxY + 40, content);
@@ -405,7 +409,7 @@ export function renderCallGraph(data: CallGraphResult): string {
     const y2 = goingDown ? to.y : to.y + to.height;
 
     const midY = (y1 + y2) / 2;
-    content += `<path d="M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}" fill="none" stroke="#fb923c" stroke-width="1.5" marker-end="url(#arrowhead-call)" opacity="0.6"/>`;
+    content += `<path class="graph-edge" data-edge-from="${escapeHtml(edge.from)}" data-edge-to="${escapeHtml(edge.to)}" d="M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}" fill="none" stroke="#fb923c" stroke-width="1.5" marker-end="url(#arrowhead-call)" opacity="0.6"/>`;
   }
 
   // Draw nodes as rounded rectangles
@@ -413,12 +417,14 @@ export function renderCallGraph(data: CallGraphResult): string {
     const ln = layout.get(node.name)!;
     const color = COLORS[node.kind] ?? COLORS.function;
 
+    content += `<g class="graph-node" data-node-id="${escapeHtml(node.name)}" style="cursor:pointer">`;
     content += `<rect x="${ln.x}" y="${ln.y}" width="${ln.width}" height="${ln.height}" rx="18" fill="#1a1a2e" stroke="${color}" stroke-width="2"/>`;
 
     // Label
     const displayName =
       node.name.length > 20 ? node.name.substring(0, 19) + "\u2026" : node.name;
     content += `<text x="${ln.x + ln.width / 2}" y="${ln.y + ln.height / 2 + 4}" text-anchor="middle" fill="${color}" font-size="10" font-weight="bold">${escapeHtml(displayName)}</text>`;
+    content += `</g>`;
   }
 
   const svgWidth = maxX + 40;
@@ -487,6 +493,7 @@ export function renderModuleGraph(data: ModuleGraphResult): string {
     const y2 = goingDown ? to.y : to.y + to.height;
 
     const midY = (y1 + y2) / 2;
+    content += `<g class="graph-edge" data-edge-from="${escapeHtml(edge.from)}" data-edge-to="${escapeHtml(edge.to)}">`;
     content += `<path d="M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}" fill="none" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead)" opacity="0.5"/>`;
 
     // Label
@@ -496,12 +503,14 @@ export function renderModuleGraph(data: ModuleGraphResult): string {
     if (label.length < 40) {
       content += `<text x="${labelX}" y="${labelY}" text-anchor="middle" fill="#8888a0" font-size="8">${escapeHtml(label)}</text>`;
     }
+    content += `</g>`;
   }
 
   // Draw nodes
   for (const node of data.nodes) {
     const ln = layout.get(node.path)!;
 
+    content += `<g class="graph-node" data-node-id="${escapeHtml(node.path)}" style="cursor:pointer">`;
     content += `<rect x="${ln.x}" y="${ln.y}" width="${ln.width}" height="${ln.height}" rx="6" fill="#1a1a2e" stroke="#22d3ee" stroke-width="1.5"/>`;
 
     // Filename
@@ -517,6 +526,7 @@ export function renderModuleGraph(data: ModuleGraphResult): string {
     if (node.exports.length > 0) {
       content += `<text x="${ln.x + PADDING_X}" y="${ln.y + 42}" fill="#4ade80" font-size="9">exports: ${escapeHtml(node.exports.join(", "))}</text>`;
     }
+    content += `</g>`;
   }
 
   return createSvgElement(maxX + 60, maxY + 60, content);
