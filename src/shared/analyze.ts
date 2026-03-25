@@ -487,7 +487,9 @@ function resolveImport(
     }
   }
 
-  const base = resolved.join("/");
+  let base = resolved.join("/");
+  // Normalize away leading "./" so root-level files resolve correctly
+  if (base.startsWith("./")) base = base.substring(2);
   const candidates = [base, `${base}.ts`, `${base}.tsx`, `${base}/index.ts`];
   return candidates.find((c) => knownPaths.has(c));
 }
