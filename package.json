@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "check": "npm run typecheck && npm run lint"
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm run test"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -18,7 +19,8 @@
     "eslint-config-prettier": "^10.1.8",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.57.2",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "vitest": "^4.1.1"
   },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.2.5",
