@@ -54,6 +54,7 @@ export function setupPage(opts: {
 
   // Add header buttons
   addShareButton();
+  addExportButton(output);
   addFullscreenButton(output, () => {
     // After fullscreen content is set up, return current SVG
     const svg = output.querySelector("svg");
@@ -89,6 +90,39 @@ function addShareButton() {
   } else {
     header.appendChild(btn);
   }
+}
+
+function addExportButton(diagramArea: HTMLElement) {
+  const diagramPanel = diagramArea.closest(".panel");
+  const panelHeader = diagramPanel?.querySelector(".panel-header");
+  if (!panelHeader) return;
+
+  const btn = document.createElement("button");
+  btn.className = "export-btn";
+  btn.textContent = "SVG";
+  btn.title = "Export diagram as SVG";
+
+  btn.addEventListener("click", () => {
+    const svg = diagramArea.querySelector("svg");
+    if (!svg) return;
+
+    const svgString = new XMLSerializer().serializeToString(svg);
+    const blob = new Blob([svgString], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+
+    // Derive filename from page title (e.g. "Type Map - code-explorer" → "type-map")
+    const slug =
+      document.title.split(" - ")[0]?.toLowerCase().replace(/\s+/g, "-") ??
+      "diagram";
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${slug}.svg`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  panelHeader.appendChild(btn);
 }
 
 function addFullscreenButton(

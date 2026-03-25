@@ -292,10 +292,31 @@ a:hover {
   );
 }
 
-/* --- Fullscreen button in panel header --- */
+/* --- Panel header buttons --- */
 
 .panel-header {
   position: relative;
+}
+
+.export-btn {
+  position: absolute;
+  right: 2.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.export-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
 }
 
 .fullscreen-btn {
