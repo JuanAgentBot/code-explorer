@@ -214,7 +214,6 @@ export function renderCallGraph(data: CallGraphResult): string {
   }
 
   const NODE_RADIUS = 30;
-  const NODE_PAD = 120;
   const COLORS: Record<string, string> = {
     function: "#c084fc",
     method: "#22d3ee",
