@@ -1,8 +1,9 @@
 import { readCodeFromHash, writeCodeToHash, copyShareUrl } from "./url";
+import { createEditor } from "./editor";
 
 /**
- * Wire up a prototype page: textarea input on the left, SVG output on the right.
- * Calls `onUpdate` whenever the input changes (debounced).
+ * Wire up a prototype page: CodeMirror editor on the left, SVG output on the right.
+ * Calls `onUpdate` whenever the input changes (debounced inside the editor).
  *
  * If the URL contains a hash, the code is loaded from it instead of the sample.
  * Every edit updates the hash so the URL is always shareable.
@@ -13,15 +14,12 @@ export function setupPage(opts: {
   sampleCode: string;
   onUpdate: (code: string) => string;
 }) {
-  const input = document.getElementById(opts.inputId) as HTMLTextAreaElement;
+  const container = document.getElementById(opts.inputId);
   const output = document.getElementById(opts.outputId) as HTMLElement;
 
-  if (!input || !output) return;
+  if (!container || !output) return;
 
-  let timer: ReturnType<typeof setTimeout>;
-
-  function update() {
-    const code = input.value;
+  function update(code: string) {
     writeCodeToHash(code);
     try {
       const svg = opts.onUpdate(code);
@@ -31,15 +29,13 @@ export function setupPage(opts: {
     }
   }
 
-  input.addEventListener("input", () => {
-    clearTimeout(timer);
-    timer = setTimeout(update, 300);
-  });
-
   // Load from URL hash or fall back to sample code
-  const fromHash = readCodeFromHash();
-  input.value = fromHash ?? opts.sampleCode;
-  update();
+  const initialCode = readCodeFromHash() ?? opts.sampleCode;
+
+  createEditor(container, initialCode, update);
+
+  // Trigger initial render
+  update(initialCode);
 
   // Add share button to the header
   addShareButton();
