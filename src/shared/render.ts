@@ -41,7 +41,7 @@ function createSvgElement(
 </svg>`;
 }
 
-// --- Simple Layout ---
+// --- Layout ---
 
 interface LayoutNode {
   id: string;
@@ -51,43 +51,180 @@ interface LayoutNode {
   height: number;
 }
 
-function simpleGridLayout(
-  ids: string[],
+interface LayoutEdge {
+  from: string;
+  to: string;
+}
+
+/**
+ * Layered graph layout (simplified Sugiyama).
+ *
+ * Assigns nodes to layers based on edge direction, orders nodes within
+ * layers to reduce crossings (barycenter heuristic), then assigns
+ * coordinates. Handles cycles by detecting back-edges via DFS.
+ *
+ * Edges flow top-to-bottom: a node with an edge to another is placed
+ * above it. Pass reversed edges to invert direction (e.g. for type
+ * hierarchies where parents should be on top).
+ */
+function layeredLayout(
+  nodeIds: string[],
+  edges: LayoutEdge[],
   getSize: (id: string) => { width: number; height: number },
-  padding: number = 40,
-  maxCols: number = 4,
+  options: { padX?: number; padY?: number; gapX?: number; gapY?: number } = {},
 ): Map<string, LayoutNode> {
+  const { padX = 40, padY = 40, gapX = 40, gapY = 60 } = options;
   const result = new Map<string, LayoutNode>();
-  const cols = Math.min(ids.length, maxCols);
 
-  // Calculate max width per column and max height per row
-  const colWidths: number[] = new Array(cols).fill(0);
-  const rowHeights: number[] = [];
-
-  for (let i = 0; i < ids.length; i++) {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const size = getSize(ids[i]);
-    colWidths[col] = Math.max(colWidths[col], size.width);
-    if (!rowHeights[row]) rowHeights[row] = 0;
-    rowHeights[row] = Math.max(rowHeights[row], size.height);
+  if (nodeIds.length === 0) return result;
+  if (nodeIds.length === 1) {
+    const size = getSize(nodeIds[0]);
+    result.set(nodeIds[0], { id: nodeIds[0], x: padX, y: padY, ...size });
+    return result;
   }
 
-  let y = padding;
-  for (let i = 0; i < ids.length; i++) {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    if (col === 0 && i > 0) {
-      y += rowHeights[row - 1] + padding;
-    }
+  const nodeSet = new Set(nodeIds);
 
-    let x = padding;
-    for (let c = 0; c < col; c++) {
-      x += colWidths[c] + padding;
+  // Build adjacency lists (only for known nodes, skip self-loops)
+  const childrenOf = new Map<string, string[]>();
+  const parentsOf = new Map<string, string[]>();
+  for (const id of nodeIds) {
+    childrenOf.set(id, []);
+    parentsOf.set(id, []);
+  }
+  for (const e of edges) {
+    if (nodeSet.has(e.from) && nodeSet.has(e.to) && e.from !== e.to) {
+      childrenOf.get(e.from)!.push(e.to);
+      parentsOf.get(e.to)!.push(e.from);
     }
+  }
 
-    const size = getSize(ids[i]);
-    result.set(ids[i], { id: ids[i], x, y, width: size.width, height: size.height });
+  // --- Cycle breaking (DFS back-edge detection) ---
+  const visited = new Set<string>();
+  const inStack = new Set<string>();
+  const backEdges = new Set<string>();
+
+  function dfs(node: string) {
+    visited.add(node);
+    inStack.add(node);
+    for (const child of childrenOf.get(node) ?? []) {
+      if (inStack.has(child)) {
+        backEdges.add(`${node}->${child}`);
+      } else if (!visited.has(child)) {
+        dfs(child);
+      }
+    }
+    inStack.delete(node);
+  }
+
+  const roots = nodeIds.filter((id) => parentsOf.get(id)!.length === 0);
+  for (const r of roots.length > 0 ? roots : nodeIds) {
+    if (!visited.has(r)) dfs(r);
+  }
+
+  // --- Layer assignment (longest path from roots, ignoring back-edges) ---
+  const layer = new Map<string, number>();
+
+  function assignLayer(node: string, trail: Set<string>): number {
+    if (layer.has(node)) return layer.get(node)!;
+    trail.add(node);
+    let maxParent = -1;
+    for (const p of parentsOf.get(node) ?? []) {
+      if (!backEdges.has(`${p}->${node}`) && !trail.has(p)) {
+        maxParent = Math.max(maxParent, assignLayer(p, trail));
+      }
+    }
+    const l = maxParent + 1;
+    layer.set(node, l);
+    trail.delete(node);
+    return l;
+  }
+
+  for (const id of nodeIds) assignLayer(id, new Set());
+
+  // Group by layer
+  const layers: string[][] = [];
+  for (const [id, l] of layer) {
+    while (layers.length <= l) layers.push([]);
+    layers[l].push(id);
+  }
+
+  // --- Within-layer ordering (barycenter heuristic, 4 passes) ---
+  for (let pass = 0; pass < 4; pass++) {
+    const down = pass % 2 === 0;
+    const start = down ? 1 : layers.length - 2;
+    const end = down ? layers.length : -1;
+    const step = down ? 1 : -1;
+
+    for (let li = start; li !== end; li += step) {
+      const cur = layers[li];
+      const adj = layers[li - step];
+      if (!adj) continue;
+
+      const adjPos = new Map<string, number>();
+      adj.forEach((id, i) => adjPos.set(id, i));
+
+      const bary = new Map<string, number>();
+      for (const id of cur) {
+        const neighbors = down
+          ? (parentsOf.get(id) ?? [])
+          : (childrenOf.get(id) ?? []);
+        const positions = neighbors
+          .filter(
+            (n) =>
+              adjPos.has(n) &&
+              !backEdges.has(down ? `${n}->${id}` : `${id}->${n}`),
+          )
+          .map((n) => adjPos.get(n)!);
+        bary.set(
+          id,
+          positions.length > 0
+            ? positions.reduce((a, b) => a + b, 0) / positions.length
+            : Infinity,
+        );
+      }
+
+      cur.sort((a, b) => {
+        const ba = bary.get(a)!;
+        const bb = bary.get(b)!;
+        if (ba === Infinity && bb === Infinity) return 0;
+        if (ba === Infinity) return 1;
+        if (bb === Infinity) return -1;
+        return ba - bb;
+      });
+    }
+  }
+
+  // --- Coordinate assignment (center each layer) ---
+  const sizes = new Map<string, { width: number; height: number }>();
+  for (const id of nodeIds) sizes.set(id, getSize(id));
+
+  const layerHeights: number[] = [];
+  const layerWidths: number[] = [];
+  for (const cur of layers) {
+    let h = 0;
+    let w = 0;
+    for (let i = 0; i < cur.length; i++) {
+      const s = sizes.get(cur[i])!;
+      h = Math.max(h, s.height);
+      w += s.width + (i > 0 ? gapX : 0);
+    }
+    layerHeights.push(h);
+    layerWidths.push(w);
+  }
+
+  const maxW = Math.max(...layerWidths);
+
+  let y = padY;
+  for (let li = 0; li < layers.length; li++) {
+    const cur = layers[li];
+    let x = padX + (maxW - layerWidths[li]) / 2;
+    for (const id of cur) {
+      const s = sizes.get(id)!;
+      result.set(id, { id, x, y, width: s.width, height: s.height });
+      x += s.width + gapX;
+    }
+    y += layerHeights[li] + gapY;
   }
 
   return result;
@@ -134,8 +271,14 @@ export function renderTypeMap(data: TypeMapResult): string {
     return { width, height };
   }
 
-  const layout = simpleGridLayout(
+  // Reverse edges for layout so parents (extend targets) sit on top
+  const layoutEdges: LayoutEdge[] = data.edges
+    .filter((e) => e.kind === "extends" || e.kind === "implements")
+    .map((e) => ({ from: e.to, to: e.from }));
+
+  const layout = layeredLayout(
     data.nodes.map((n) => n.name),
+    layoutEdges,
     nodeSize,
   );
 
@@ -149,21 +292,24 @@ export function renderTypeMap(data: TypeMapResult): string {
 
   let content = "";
 
-  // Draw edges
+  // Draw edges (direction-agnostic: pick exit/entry sides based on relative position)
   for (const edge of data.edges) {
     const from = layout.get(edge.from);
     const to = layout.get(edge.to);
     if (!from || !to) continue;
 
+    const fromCy = from.y + from.height / 2;
+    const toCy = to.y + to.height / 2;
+    const goingDown = fromCy < toCy;
+
     const x1 = from.x + from.width / 2;
-    const y1 = from.y + from.height;
+    const y1 = goingDown ? from.y + from.height : from.y;
     const x2 = to.x + to.width / 2;
-    const y2 = to.y;
+    const y2 = goingDown ? to.y : to.y + to.height;
 
     const color = EDGE_COLORS[edge.kind] ?? "#8888a0";
     const dashArray = edge.kind === "references" ? 'stroke-dasharray="6 3"' : "";
 
-    // Curved path
     const midY = (y1 + y2) / 2;
     content += `<path d="M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="1.5" ${dashArray} marker-end="url(#arrowhead-${edge.kind})" opacity="0.7"/>`;
   }
@@ -213,74 +359,70 @@ export function renderCallGraph(data: CallGraphResult): string {
     );
   }
 
-  const NODE_RADIUS = 30;
+  const CHAR_WIDTH = 8;
+  const PAD = 16;
+  const NODE_HEIGHT = 36;
   const COLORS: Record<string, string> = {
     function: "#c084fc",
     method: "#22d3ee",
     arrow: "#4ade80",
   };
 
-  // Simple force-like layout: arrange in a circle, then pull connected nodes closer
-  const n = data.nodes.length;
-  const centerX = Math.max(300, n * 30);
-  const centerY = Math.max(250, n * 25);
-  const radius = Math.min(centerX, centerY) - 80;
+  function callNodeSize(name: string): { width: number; height: number } {
+    return { width: Math.max(name.length * CHAR_WIDTH + PAD * 2, 80), height: NODE_HEIGHT };
+  }
 
-  const positions = new Map<string, { x: number; y: number }>();
-  data.nodes.forEach((node, i) => {
-    const angle = (2 * Math.PI * i) / n - Math.PI / 2;
-    positions.set(node.name, {
-      x: centerX + radius * Math.cos(angle),
-      y: centerY + radius * Math.sin(angle),
-    });
-  });
+  const layout = layeredLayout(
+    data.nodes.map((n) => n.name),
+    data.edges,
+    (id) => callNodeSize(id),
+    { gapY: 50 },
+  );
+
+  // Calculate SVG bounds
+  let maxX = 0;
+  let maxY = 0;
+  for (const ln of layout.values()) {
+    maxX = Math.max(maxX, ln.x + ln.width);
+    maxY = Math.max(maxY, ln.y + ln.height);
+  }
 
   let content = "";
 
   // Draw edges
   for (const edge of data.edges) {
-    const from = positions.get(edge.from);
-    const to = positions.get(edge.to);
+    const from = layout.get(edge.from);
+    const to = layout.get(edge.to);
     if (!from || !to) continue;
 
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist === 0) continue;
+    const fromCy = from.y + from.height / 2;
+    const toCy = to.y + to.height / 2;
+    const goingDown = fromCy < toCy;
 
-    const ox = (dx / dist) * (NODE_RADIUS + 4);
-    const oy = (dy / dist) * (NODE_RADIUS + 4);
+    const x1 = from.x + from.width / 2;
+    const y1 = goingDown ? from.y + from.height : from.y;
+    const x2 = to.x + to.width / 2;
+    const y2 = goingDown ? to.y : to.y + to.height;
 
-    const x1 = from.x + ox;
-    const y1 = from.y + oy;
-    const x2 = to.x - ox;
-    const y2 = to.y - oy;
-
-    // Slight curve
-    const mx = (x1 + x2) / 2 - (y2 - y1) * 0.1;
-    const my = (y1 + y2) / 2 + (x2 - x1) * 0.1;
-
-    content += `<path d="M ${x1} ${y1} Q ${mx} ${my} ${x2} ${y2}" fill="none" stroke="#fb923c" stroke-width="1.5" marker-end="url(#arrowhead-call)" opacity="0.6"/>`;
+    const midY = (y1 + y2) / 2;
+    content += `<path d="M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}" fill="none" stroke="#fb923c" stroke-width="1.5" marker-end="url(#arrowhead-call)" opacity="0.6"/>`;
   }
 
-  // Draw nodes
+  // Draw nodes as rounded rectangles
   for (const node of data.nodes) {
-    const pos = positions.get(node.name)!;
+    const ln = layout.get(node.name)!;
     const color = COLORS[node.kind] ?? COLORS.function;
 
-    content += `<circle cx="${pos.x}" cy="${pos.y}" r="${NODE_RADIUS}" fill="#1a1a2e" stroke="${color}" stroke-width="2"/>`;
+    content += `<rect x="${ln.x}" y="${ln.y}" width="${ln.width}" height="${ln.height}" rx="18" fill="#1a1a2e" stroke="${color}" stroke-width="2"/>`;
 
     // Label
     const displayName =
-      node.name.length > 12 ? node.name.substring(0, 11) + "..." : node.name;
-    content += `<text x="${pos.x}" y="${pos.y + 4}" text-anchor="middle" fill="${color}" font-size="10" font-weight="bold">${escapeHtml(displayName)}</text>`;
-
-    // Kind tag below
-    content += `<text x="${pos.x}" y="${pos.y + NODE_RADIUS + 16}" text-anchor="middle" fill="#8888a0" font-size="9">${node.kind}</text>`;
+      node.name.length > 20 ? node.name.substring(0, 19) + "\u2026" : node.name;
+    content += `<text x="${ln.x + ln.width / 2}" y="${ln.y + ln.height / 2 + 4}" text-anchor="middle" fill="${color}" font-size="10" font-weight="bold">${escapeHtml(displayName)}</text>`;
   }
 
-  const svgWidth = centerX * 2;
-  const svgHeight = centerY * 2;
+  const svgWidth = maxX + 40;
+  const svgHeight = maxY + 40;
 
   return createSvgElement(svgWidth, svgHeight, content);
 }
@@ -313,11 +455,11 @@ export function renderModuleGraph(data: ModuleGraphResult): string {
     };
   }
 
-  const layout = simpleGridLayout(
+  const layout = layeredLayout(
     data.nodes.map((n) => n.path),
+    data.edges.map((e) => ({ from: e.from, to: e.to })),
     nodeSize,
-    60,
-    3,
+    { padX: 60, padY: 40, gapX: 60, gapY: 60 },
   );
 
   let maxX = 0;
@@ -329,16 +471,20 @@ export function renderModuleGraph(data: ModuleGraphResult): string {
 
   let content = "";
 
-  // Draw edges
+  // Draw edges (direction-agnostic)
   for (const edge of data.edges) {
     const from = layout.get(edge.from);
     const to = layout.get(edge.to);
     if (!from || !to) continue;
 
+    const fromCy = from.y + from.height / 2;
+    const toCy = to.y + to.height / 2;
+    const goingDown = fromCy < toCy;
+
     const x1 = from.x + from.width / 2;
-    const y1 = from.y + from.height;
+    const y1 = goingDown ? from.y + from.height : from.y;
     const x2 = to.x + to.width / 2;
-    const y2 = to.y;
+    const y2 = goingDown ? to.y : to.y + to.height;
 
     const midY = (y1 + y2) / 2;
     content += `<path d="M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}" fill="none" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead)" opacity="0.5"/>`;
