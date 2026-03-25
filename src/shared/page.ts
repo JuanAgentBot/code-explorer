@@ -1,5 +1,6 @@
 import { readCodeFromHash, writeCodeToHash, copyShareUrl } from "./url";
 import { createEditor } from "./editor";
+import { setupPanZoom, type PanZoomControls } from "./pan-zoom";
 
 /**
  * Wire up a prototype page: CodeMirror editor on the left, SVG output on the right.
@@ -19,11 +20,25 @@ export function setupPage(opts: {
 
   if (!container || !output) return;
 
+  let panZoom: PanZoomControls | null = null;
+
   function update(code: string) {
     writeCodeToHash(code);
+
+    // Clean up previous pan-zoom before replacing content
+    if (panZoom) {
+      panZoom.destroy();
+      panZoom = null;
+    }
+
     try {
       const svg = opts.onUpdate(code);
       output.innerHTML = svg;
+
+      // Set up pan-zoom on the diagram area
+      if (output.querySelector("svg")) {
+        panZoom = setupPanZoom(output);
+      }
     } catch (e) {
       output.innerHTML = `<div class="empty-state">Error: ${(e as Error).message}</div>`;
     }
@@ -37,8 +52,13 @@ export function setupPage(opts: {
   // Trigger initial render
   update(initialCode);
 
-  // Add share button to the header
+  // Add header buttons
   addShareButton();
+  addFullscreenButton(output, () => {
+    // After fullscreen content is set up, return current SVG
+    const svg = output.querySelector("svg");
+    return svg ? svg.outerHTML : null;
+  });
 }
 
 function addShareButton() {
@@ -69,4 +89,107 @@ function addShareButton() {
   } else {
     header.appendChild(btn);
   }
+}
+
+function addFullscreenButton(
+  diagramArea: HTMLElement,
+  getSvg: () => string | null,
+) {
+  // Add button to the diagram panel header
+  const diagramPanel = diagramArea.closest(".panel");
+  const panelHeader = diagramPanel?.querySelector(".panel-header");
+  if (!panelHeader) return;
+
+  const btn = document.createElement("button");
+  btn.className = "fullscreen-btn";
+  btn.innerHTML = "&#x26F6;"; // ⛶ fullscreen icon
+  btn.title = "Full screen (Escape to exit)";
+
+  btn.addEventListener("click", () => {
+    openFullscreen(getSvg);
+  });
+
+  panelHeader.appendChild(btn);
+}
+
+function openFullscreen(getSvg: () => string | null) {
+  const svgHtml = getSvg();
+  if (!svgHtml) return;
+
+  // Create overlay
+  const overlay = document.createElement("div");
+  overlay.className = "fullscreen-overlay";
+
+  // Close button
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "fullscreen-close";
+  closeBtn.innerHTML = "&times;";
+  closeBtn.title = "Close (Escape)";
+
+  // Zoom controls
+  const controls = document.createElement("div");
+  controls.className = "fullscreen-controls";
+  controls.innerHTML = `
+    <button class="fullscreen-control-btn" data-action="zoom-in" title="Zoom in">+</button>
+    <button class="fullscreen-control-btn" data-action="zoom-out" title="Zoom out">&minus;</button>
+    <button class="fullscreen-control-btn" data-action="reset" title="Fit to screen">⊡</button>
+  `;
+
+  // Diagram container
+  const diagramContainer = document.createElement("div");
+  diagramContainer.className = "fullscreen-diagram";
+  diagramContainer.innerHTML = svgHtml;
+
+  overlay.appendChild(closeBtn);
+  overlay.appendChild(controls);
+  overlay.appendChild(diagramContainer);
+  document.body.appendChild(overlay);
+
+  // Set up pan-zoom on the fullscreen diagram
+  const panZoom = setupPanZoom(diagramContainer);
+
+  // Wire up control buttons
+  controls.addEventListener("click", (e) => {
+    const target = (e.target as HTMLElement).closest("[data-action]");
+    if (!target) return;
+
+    const action = target.getAttribute("data-action");
+    if (action === "reset") {
+      panZoom.reset();
+    }
+    // zoom-in / zoom-out: simulate wheel events on center
+    if (action === "zoom-in" || action === "zoom-out") {
+      const rect = diagramContainer.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      diagramContainer.dispatchEvent(
+        new WheelEvent("wheel", {
+          clientX: centerX,
+          clientY: centerY,
+          deltaY: action === "zoom-in" ? -100 : 100,
+          bubbles: true,
+        }),
+      );
+    }
+  });
+
+  // Close handlers
+  function close() {
+    panZoom.destroy();
+    document.removeEventListener("keydown", onKey);
+    overlay.remove();
+  }
+
+  function onKey(e: KeyboardEvent) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      close();
+    }
+  }
+
+  closeBtn.addEventListener("click", close);
+  document.addEventListener("keydown", onKey);
+
+  // Fade in
+  requestAnimationFrame(() => overlay.classList.add("fullscreen-overlay--open"));
 }
