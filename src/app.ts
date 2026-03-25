@@ -1,0 +1,347 @@
+import {
+  analyzeTypes,
+  analyzeCallGraph,
+  analyzeModules,
+} from "./shared/analyze";
+import {
+  renderTypeMap,
+  renderCallGraph,
+  renderModuleGraph,
+} from "./shared/render";
+import { createEditor } from "./shared/editor";
+import { setupPanZoom, type PanZoomControls } from "./shared/pan-zoom";
+import {
+  setupNodeHighlight,
+  type InteractionControls,
+} from "./shared/interaction";
+import {
+  readFromHash,
+  writeToHash,
+  copyShareUrl,
+  type ViewType,
+} from "./shared/url";
+import {
+  TYPE_MAP_SAMPLE,
+  CALL_GRAPH_SAMPLE,
+  MODULE_GRAPH_SAMPLE,
+} from "./shared/sample-code";
+
+// --- View definitions ---
+
+interface ViewConfig {
+  label: string;
+  sample: string;
+  render: (code: string) => string;
+  dotColor: string;
+  inputLabel: string;
+}
+
+const VIEWS: Record<ViewType, ViewConfig> = {
+  types: {
+    label: "Type Map",
+    sample: TYPE_MAP_SAMPLE,
+    render: (code) => renderTypeMap(analyzeTypes(code)),
+    dotColor: "var(--accent)",
+    inputLabel: "input.ts",
+  },
+  calls: {
+    label: "Call Graph",
+    sample: CALL_GRAPH_SAMPLE,
+    render: (code) => renderCallGraph(analyzeCallGraph(code)),
+    dotColor: "var(--orange)",
+    inputLabel: "input.ts",
+  },
+  modules: {
+    label: "Module Graph",
+    sample: MODULE_GRAPH_SAMPLE,
+    render: (code) => renderModuleGraph(analyzeModules(parseFiles(code))),
+    dotColor: "var(--cyan)",
+    inputLabel: "files",
+  },
+};
+
+const VIEW_ORDER: ViewType[] = ["types", "calls", "modules"];
+
+// --- Multi-file parser (for module graph) ---
+
+function parseFiles(input: string): { path: string; content: string }[] {
+  const files: { path: string; content: string }[] = [];
+  const lines = input.split("\n");
+  let currentPath: string | null = null;
+  let currentLines: string[] = [];
+
+  for (const line of lines) {
+    const match = line.match(/^\/\/\s*---\s*(.+?)\s*---\s*$/);
+    if (match) {
+      if (currentPath) {
+        files.push({ path: currentPath, content: currentLines.join("\n") });
+      }
+      currentPath = match[1].trim();
+      currentLines = [];
+    } else {
+      currentLines.push(line);
+    }
+  }
+
+  if (currentPath) {
+    files.push({ path: currentPath, content: currentLines.join("\n") });
+  }
+
+  return files;
+}
+
+// --- App state ---
+
+/** Per-tab code storage. Initialized to sample code. */
+const codeStore: Record<ViewType, string> = {
+  types: TYPE_MAP_SAMPLE,
+  calls: CALL_GRAPH_SAMPLE,
+  modules: MODULE_GRAPH_SAMPLE,
+};
+
+let activeView: ViewType = "types";
+let panZoom: PanZoomControls | null = null;
+let interaction: InteractionControls | null = null;
+
+// --- DOM setup ---
+
+const tabBar = document.getElementById("tab-bar")!;
+const diagramOutput = document.getElementById("diagram-output")!;
+const editorContainer = document.getElementById("code-input")!;
+const inputLabel = document.getElementById("input-label")!;
+const diagramDot = document.getElementById("diagram-dot")!;
+
+// Load initial state from URL hash
+const hashState = readFromHash();
+if (hashState) {
+  activeView = hashState.view;
+  codeStore[activeView] = hashState.code;
+}
+
+// Create editor
+const editor = createEditor(editorContainer, codeStore[activeView], (code) => {
+  codeStore[activeView] = code;
+  writeToHash(activeView, code);
+  renderDiagram(code);
+});
+
+// Build tab buttons
+for (const viewId of VIEW_ORDER) {
+  const btn = document.createElement("button");
+  btn.className = "tab-btn" + (viewId === activeView ? " tab-btn--active" : "");
+  btn.textContent = VIEWS[viewId].label;
+  btn.dataset.view = viewId;
+  btn.addEventListener("click", () => switchView(viewId));
+  tabBar.appendChild(btn);
+}
+
+// Header buttons
+addShareButton();
+addExportButton();
+addFullscreenButton();
+
+// Initial render
+updatePanelLabels();
+renderDiagram(codeStore[activeView]);
+
+// --- Functions ---
+
+function switchView(view: ViewType) {
+  if (view === activeView) return;
+
+  // Save current code
+  codeStore[activeView] = editor.getCode();
+
+  // Switch
+  activeView = view;
+
+  // Update editor content
+  editor.setCode(codeStore[view]);
+
+  // Update URL
+  writeToHash(view, codeStore[view]);
+
+  // Update UI
+  updatePanelLabels();
+  updateTabs();
+  renderDiagram(codeStore[view]);
+}
+
+function renderDiagram(code: string) {
+  // Clean up previous interactions
+  if (interaction) {
+    interaction.destroy();
+    interaction = null;
+  }
+  if (panZoom) {
+    panZoom.destroy();
+    panZoom = null;
+  }
+
+  try {
+    const svg = VIEWS[activeView].render(code);
+    diagramOutput.innerHTML = svg;
+
+    if (diagramOutput.querySelector("svg")) {
+      panZoom = setupPanZoom(diagramOutput);
+      interaction = setupNodeHighlight(diagramOutput);
+    }
+  } catch (e) {
+    diagramOutput.innerHTML = `<div class="empty-state">Error: ${(e as Error).message}</div>`;
+  }
+}
+
+function updateTabs() {
+  for (const btn of tabBar.querySelectorAll<HTMLButtonElement>(".tab-btn")) {
+    btn.classList.toggle("tab-btn--active", btn.dataset.view === activeView);
+  }
+}
+
+function updatePanelLabels() {
+  const config = VIEWS[activeView];
+  inputLabel.textContent = config.inputLabel;
+  diagramDot.style.background = config.dotColor;
+}
+
+function addShareButton() {
+  const header = document.querySelector(".header")!;
+  const btn = document.createElement("button");
+  btn.className = "share-btn";
+  btn.textContent = "Share";
+  btn.title = "Copy shareable URL to clipboard";
+
+  btn.addEventListener("click", async () => {
+    const ok = await copyShareUrl();
+    if (ok) {
+      btn.textContent = "Copied!";
+      btn.classList.add("share-btn--copied");
+      setTimeout(() => {
+        btn.textContent = "Share";
+        btn.classList.remove("share-btn--copied");
+      }, 1500);
+    }
+  });
+
+  header.appendChild(btn);
+}
+
+function addExportButton() {
+  const panelHeader = diagramOutput
+    .closest(".panel")
+    ?.querySelector(".panel-header");
+  if (!panelHeader) return;
+
+  const btn = document.createElement("button");
+  btn.className = "export-btn";
+  btn.textContent = "SVG";
+  btn.title = "Export diagram as SVG";
+
+  btn.addEventListener("click", () => {
+    const svg = diagramOutput.querySelector("svg");
+    if (!svg) return;
+
+    const svgString = new XMLSerializer().serializeToString(svg);
+    const blob = new Blob([svgString], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+
+    const slug = VIEWS[activeView].label.toLowerCase().replace(/\s+/g, "-");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${slug}.svg`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  panelHeader.appendChild(btn);
+}
+
+function addFullscreenButton() {
+  const panelHeader = diagramOutput
+    .closest(".panel")
+    ?.querySelector(".panel-header");
+  if (!panelHeader) return;
+
+  const btn = document.createElement("button");
+  btn.className = "fullscreen-btn";
+  btn.innerHTML = "&#x26F6;";
+  btn.title = "Full screen (Escape to exit)";
+
+  btn.addEventListener("click", () => {
+    const svg = diagramOutput.querySelector("svg");
+    if (!svg) return;
+    openFullscreen(svg.outerHTML);
+  });
+
+  panelHeader.appendChild(btn);
+}
+
+function openFullscreen(svgHtml: string) {
+  const overlay = document.createElement("div");
+  overlay.className = "fullscreen-overlay";
+
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "fullscreen-close";
+  closeBtn.innerHTML = "&times;";
+  closeBtn.title = "Close (Escape)";
+
+  const controls = document.createElement("div");
+  controls.className = "fullscreen-controls";
+  controls.innerHTML = `
+    <button class="fullscreen-control-btn" data-action="zoom-in" title="Zoom in">+</button>
+    <button class="fullscreen-control-btn" data-action="zoom-out" title="Zoom out">&minus;</button>
+    <button class="fullscreen-control-btn" data-action="reset" title="Fit to screen">⊡</button>
+  `;
+
+  const diagramContainer = document.createElement("div");
+  diagramContainer.className = "fullscreen-diagram";
+  diagramContainer.innerHTML = svgHtml;
+
+  overlay.appendChild(closeBtn);
+  overlay.appendChild(controls);
+  overlay.appendChild(diagramContainer);
+  document.body.appendChild(overlay);
+
+  const fsPanZoom = setupPanZoom(diagramContainer);
+  const fsInteraction = setupNodeHighlight(diagramContainer);
+
+  controls.addEventListener("click", (e) => {
+    const target = (e.target as HTMLElement).closest("[data-action]");
+    if (!target) return;
+    const action = target.getAttribute("data-action");
+    if (action === "reset") {
+      fsPanZoom.reset();
+    }
+    if (action === "zoom-in" || action === "zoom-out") {
+      const rect = diagramContainer.getBoundingClientRect();
+      diagramContainer.dispatchEvent(
+        new WheelEvent("wheel", {
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+          deltaY: action === "zoom-in" ? -100 : 100,
+          bubbles: true,
+        }),
+      );
+    }
+  });
+
+  function close() {
+    fsInteraction.destroy();
+    fsPanZoom.destroy();
+    document.removeEventListener("keydown", onKey);
+    overlay.remove();
+  }
+
+  function onKey(e: KeyboardEvent) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      close();
+    }
+  }
+
+  closeBtn.addEventListener("click", close);
+  document.addEventListener("keydown", onKey);
+
+  requestAnimationFrame(() =>
+    overlay.classList.add("fullscreen-overlay--open"),
+  );
+}

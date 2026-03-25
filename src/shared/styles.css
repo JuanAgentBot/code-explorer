@@ -58,6 +58,37 @@ a:hover {
   font-weight: 700;
 }
 
+/* --- Tab bar --- */
+
+.tab-bar {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.tab-btn {
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.tab-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.tab-btn--active {
+  border-color: var(--accent);
+  background: rgba(192, 132, 252, 0.1);
+  color: var(--accent);
+}
+
 .header .tag {
   font-size: 0.75rem;
   padding: 0.2rem 0.6rem;
