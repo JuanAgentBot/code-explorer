@@ -67,8 +67,30 @@ a:hover {
   font-family: var(--font-mono);
 }
 
-.header nav {
+.share-btn {
   margin-left: auto;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.share-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.share-btn--copied {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.header nav {
   display: flex;
   gap: 1.5rem;
   font-size: 0.9rem;
