@@ -1,6 +1,7 @@
 import { readCodeFromHash, writeCodeToHash, copyShareUrl } from "./url";
 import { createEditor } from "./editor";
 import { setupPanZoom, type PanZoomControls } from "./pan-zoom";
+import { setupNodeHighlight, type InteractionControls } from "./interaction";
 
 /**
  * Wire up a prototype page: CodeMirror editor on the left, SVG output on the right.
@@ -21,11 +22,16 @@ export function setupPage(opts: {
   if (!container || !output) return;
 
   let panZoom: PanZoomControls | null = null;
+  let interaction: InteractionControls | null = null;
 
   function update(code: string) {
     writeCodeToHash(code);
 
-    // Clean up previous pan-zoom before replacing content
+    // Clean up previous interactions before replacing content
+    if (interaction) {
+      interaction.destroy();
+      interaction = null;
+    }
     if (panZoom) {
       panZoom.destroy();
       panZoom = null;
@@ -35,9 +41,10 @@ export function setupPage(opts: {
       const svg = opts.onUpdate(code);
       output.innerHTML = svg;
 
-      // Set up pan-zoom on the diagram area
+      // Set up pan-zoom and node highlighting on the diagram area
       if (output.querySelector("svg")) {
         panZoom = setupPanZoom(output);
+        interaction = setupNodeHighlight(output);
       }
     } catch (e) {
       output.innerHTML = `<div class="empty-state">Error: ${(e as Error).message}</div>`;
@@ -179,8 +186,9 @@ function openFullscreen(getSvg: () => string | null) {
   overlay.appendChild(diagramContainer);
   document.body.appendChild(overlay);
 
-  // Set up pan-zoom on the fullscreen diagram
+  // Set up pan-zoom and node highlighting on the fullscreen diagram
   const panZoom = setupPanZoom(diagramContainer);
+  const fsInteraction = setupNodeHighlight(diagramContainer);
 
   // Wire up control buttons
   controls.addEventListener("click", (e) => {
@@ -209,6 +217,7 @@ function openFullscreen(getSvg: () => string | null) {
 
   // Close handlers
   function close() {
+    fsInteraction.destroy();
     panZoom.destroy();
     document.removeEventListener("keydown", onKey);
     overlay.remove();
