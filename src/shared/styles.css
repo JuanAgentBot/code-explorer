@@ -149,16 +149,13 @@ a:hover {
 .diagram-area {
   width: 100%;
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: auto;
-  padding: 1rem;
+  overflow: hidden;
+  position: relative;
+  cursor: grab;
 }
 
 .diagram-area svg {
-  max-width: 100%;
-  max-height: 100%;
+  display: block;
 }
 
 .empty-state {
@@ -293,6 +290,113 @@ a:hover {
     transparent 6px,
     transparent 9px
   );
+}
+
+/* --- Fullscreen button in panel header --- */
+
+.panel-header {
+  position: relative;
+}
+
+.fullscreen-btn {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  line-height: 1;
+}
+
+.fullscreen-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* --- Fullscreen overlay --- */
+
+.fullscreen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: var(--bg);
+  display: flex;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.fullscreen-overlay--open {
+  opacity: 1;
+}
+
+.fullscreen-diagram {
+  flex: 1;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.fullscreen-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1001;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-dim);
+  font-size: 20px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.fullscreen-close:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.fullscreen-controls {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 1001;
+  display: flex;
+  gap: 0.25rem;
+}
+
+.fullscreen-control-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.fullscreen-control-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
 }
 
 @media (max-width: 768px) {
