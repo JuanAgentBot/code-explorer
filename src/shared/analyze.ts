@@ -404,6 +404,32 @@ export function analyzeModules(
         exports.push("default");
       }
 
+      // Collect re-exports: export { foo } from './bar' and export * from './bar'
+      if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+        const spec = node.moduleSpecifier.text;
+        const resolved = resolveImport(file.path, spec, pathSet);
+        if (resolved) {
+          const names: string[] = [];
+          if (node.exportClause && ts.isNamedExports(node.exportClause)) {
+            // export { foo, bar } from './module'
+            for (const el of node.exportClause.elements) {
+              names.push(el.propertyName?.text ?? el.name.text);
+              exports.push(el.name.text);
+            }
+          } else if (!node.exportClause) {
+            // export * from './module'
+            names.push("*");
+            exports.push("*");
+          }
+          const existing = imports.get(resolved);
+          if (existing) {
+            existing.push(...names);
+          } else {
+            imports.set(resolved, names);
+          }
+        }
+      }
+
       // Collect imports
       if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
         const spec = node.moduleSpecifier.text;

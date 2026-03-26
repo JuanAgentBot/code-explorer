@@ -136,9 +136,12 @@ export function createDatabase(config: unknown) {}
 // --- src/db/migrations.ts ---
 export function runMigrations(db: unknown) {}
 
+// --- src/controllers/index.ts ---
+export { UserController } from "./user";
+export { PostController } from "./post";
+
 // --- src/routes/router.ts ---
-import { UserController } from "../controllers/user";
-import { PostController } from "../controllers/post";
+import { UserController, PostController } from "../controllers";
 
 export class Router {}
 

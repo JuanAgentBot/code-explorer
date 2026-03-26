@@ -534,4 +534,115 @@ describe("analyzeModules", () => {
       to: "lib/index.ts",
     });
   });
+
+  it("handles named re-exports", () => {
+    const result = analyzeModules([
+      {
+        path: "math.ts",
+        content: `export function add() {} export function subtract() {}`,
+      },
+      {
+        path: "index.ts",
+        content: `export { add, subtract } from "./math";`,
+      },
+    ]);
+
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]).toMatchObject({
+      from: "index.ts",
+      to: "math.ts",
+      imports: ["add", "subtract"],
+    });
+    expect(result.nodes.find((n) => n.path === "index.ts")?.exports).toEqual(
+      expect.arrayContaining(["add", "subtract"]),
+    );
+  });
+
+  it("handles star re-exports", () => {
+    const result = analyzeModules([
+      {
+        path: "utils.ts",
+        content: `export function format() {} export function parse() {}`,
+      },
+      {
+        path: "index.ts",
+        content: `export * from "./utils";`,
+      },
+    ]);
+
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]).toMatchObject({
+      from: "index.ts",
+      to: "utils.ts",
+      imports: ["*"],
+    });
+    expect(result.nodes.find((n) => n.path === "index.ts")?.exports).toContain("*");
+  });
+
+  it("handles barrel file re-exporting from multiple modules", () => {
+    const result = analyzeModules([
+      {
+        path: "lib/math.ts",
+        content: `export function add() {}`,
+      },
+      {
+        path: "lib/string.ts",
+        content: `export function trim() {}`,
+      },
+      {
+        path: "lib/index.ts",
+        content: `export { add } from "./math";\nexport { trim } from "./string";`,
+      },
+      {
+        path: "main.ts",
+        content: `import { add, trim } from "./lib";`,
+      },
+    ]);
+
+    const indexEdges = result.edges.filter((e) => e.from === "lib/index.ts");
+    expect(indexEdges).toHaveLength(2);
+    expect(indexEdges).toContainEqual(
+      expect.objectContaining({ from: "lib/index.ts", to: "lib/math.ts" }),
+    );
+    expect(indexEdges).toContainEqual(
+      expect.objectContaining({ from: "lib/index.ts", to: "lib/string.ts" }),
+    );
+
+    const mainEdge = result.edges.find((e) => e.from === "main.ts");
+    expect(mainEdge).toMatchObject({ to: "lib/index.ts" });
+  });
+
+  it("handles re-export with renaming", () => {
+    const result = analyzeModules([
+      {
+        path: "internal.ts",
+        content: `export function _doWork() {}`,
+      },
+      {
+        path: "public.ts",
+        content: `export { _doWork as doWork } from "./internal";`,
+      },
+    ]);
+
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]).toMatchObject({
+      from: "public.ts",
+      to: "internal.ts",
+      imports: ["_doWork"],
+    });
+    expect(result.nodes.find((n) => n.path === "public.ts")?.exports).toContain(
+      "doWork",
+    );
+  });
+
+  it("ignores re-exports from non-relative modules", () => {
+    const result = analyzeModules([
+      {
+        path: "index.ts",
+        content: `export { readFile } from "fs";`,
+      },
+    ]);
+
+    expect(result.edges).toHaveLength(0);
+  });
 });
