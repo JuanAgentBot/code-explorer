@@ -280,6 +280,23 @@ describe("renderTypeMap", () => {
     });
     expect(svg).toContain("empty");
   });
+
+  it("includes a legend with node kinds and edge types", () => {
+    const svg = renderTypeMap({
+      nodes: [
+        { name: "A", kind: "interface", members: [], position: { line: 1 } },
+      ],
+      edges: [],
+    });
+    expect(svg).toContain('class="legend"');
+    expect(svg).toContain("interface");
+    expect(svg).toContain("type");
+    expect(svg).toContain("class");
+    expect(svg).toContain("enum");
+    expect(svg).toContain("extends");
+    expect(svg).toContain("implements");
+    expect(svg).toContain("references");
+  });
 });
 
 // --- renderCallGraph ---
@@ -337,6 +354,20 @@ describe("renderCallGraph", () => {
     // Should contain the truncated name with ellipsis
     expect(svg).toContain("aVeryLongFunctionNam");
     expect(svg).toContain("\u2026");
+  });
+
+  it("includes a legend with node kinds and edge type", () => {
+    const svg = renderCallGraph({
+      nodes: [
+        { name: "fn", kind: "function", position: { line: 1 } },
+      ],
+      edges: [],
+    });
+    expect(svg).toContain('class="legend"');
+    expect(svg).toContain("function");
+    expect(svg).toContain("method");
+    expect(svg).toContain("arrow");
+    expect(svg).toContain("calls");
   });
 });
 
@@ -407,5 +438,15 @@ describe("renderModuleGraph", () => {
     expect(edgeGroup).toBeDefined();
     // Should only have the path element, no text element for the label
     expect(edgeGroup).not.toContain("<text");
+  });
+
+  it("includes a legend with imports", () => {
+    const svg = renderModuleGraph({
+      nodes: [{ path: "index.ts", exports: [] }],
+      edges: [],
+    });
+    expect(svg).toContain('class="legend"');
+    expect(svg).toContain("imports");
+    expect(svg).toContain("exports");
   });
 });

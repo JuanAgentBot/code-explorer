@@ -230,6 +230,43 @@ export function layeredLayout(
   return result;
 }
 
+// --- Legend ---
+
+interface LegendItem {
+  color: string;
+  label: string;
+  dashed?: boolean;
+}
+
+function renderLegend(items: LegendItem[], x: number, y: number): { svg: string; height: number } {
+  const DOT_R = 4;
+  const LINE_W = 14;
+  const GAP = 20;
+  const CHAR_W = 6.5;
+  const ROW_H = 20;
+
+  let svg = `<g class="legend" opacity="0.6">`;
+  let cx = x;
+
+  for (const item of items) {
+    if (item.dashed !== undefined) {
+      // Edge indicator: short line (solid or dashed)
+      const dashAttr = item.dashed ? ' stroke-dasharray="4 2"' : "";
+      svg += `<line x1="${cx}" y1="${y + ROW_H / 2}" x2="${cx + LINE_W}" y2="${y + ROW_H / 2}" stroke="${item.color}" stroke-width="2"${dashAttr}/>`;
+      cx += LINE_W + 6;
+    } else {
+      // Node indicator: filled circle
+      svg += `<circle cx="${cx + DOT_R}" cy="${y + ROW_H / 2}" r="${DOT_R}" fill="${item.color}"/>`;
+      cx += DOT_R * 2 + 6;
+    }
+    svg += `<text x="${cx}" y="${y + ROW_H / 2 + 3.5}" fill="#8888a0" font-size="10">${escapeHtml(item.label)}</text>`;
+    cx += item.label.length * CHAR_W + GAP;
+  }
+
+  svg += `</g>`;
+  return { svg, height: ROW_H };
+}
+
 // --- Type Map Renderer ---
 
 const TYPE_COLORS: Record<string, { bg: string; border: string; header: string }> = {
@@ -349,7 +386,20 @@ export function renderTypeMap(data: TypeMapResult): string {
     content += `</g>`;
   }
 
-  return createSvgElement(maxX + 40, maxY + 40, content);
+  // Legend
+  const legendItems: LegendItem[] = [
+    { color: "#c084fc", label: "interface" },
+    { color: "#22d3ee", label: "type" },
+    { color: "#f472b6", label: "class" },
+    { color: "#fb923c", label: "enum" },
+    { color: "#c084fc", label: "extends", dashed: false },
+    { color: "#22d3ee", label: "implements", dashed: false },
+    { color: "#4ade80", label: "references", dashed: true },
+  ];
+  const legend = renderLegend(legendItems, 40, maxY + 30);
+  content += legend.svg;
+
+  return createSvgElement(maxX + 40, maxY + 30 + legend.height + 20, content);
 }
 
 // --- Call Graph Renderer ---
@@ -427,10 +477,17 @@ export function renderCallGraph(data: CallGraphResult): string {
     content += `</g>`;
   }
 
-  const svgWidth = maxX + 40;
-  const svgHeight = maxY + 40;
+  // Legend
+  const legendItems: LegendItem[] = [
+    { color: "#c084fc", label: "function" },
+    { color: "#22d3ee", label: "method" },
+    { color: "#4ade80", label: "arrow" },
+    { color: "#fb923c", label: "calls", dashed: false },
+  ];
+  const legend = renderLegend(legendItems, 40, maxY + 30);
+  content += legend.svg;
 
-  return createSvgElement(svgWidth, svgHeight, content);
+  return createSvgElement(maxX + 40, maxY + 30 + legend.height + 20, content);
 }
 
 // --- Module Graph Renderer ---
@@ -529,5 +586,13 @@ export function renderModuleGraph(data: ModuleGraphResult): string {
     content += `</g>`;
   }
 
-  return createSvgElement(maxX + 60, maxY + 60, content);
+  // Legend
+  const legendItems: LegendItem[] = [
+    { color: "#22d3ee", label: "imports", dashed: false },
+    { color: "#4ade80", label: "exports" },
+  ];
+  const legend = renderLegend(legendItems, 60, maxY + 30);
+  content += legend.svg;
+
+  return createSvgElement(maxX + 60, maxY + 30 + legend.height + 20, content);
 }
