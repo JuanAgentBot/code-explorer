@@ -16,9 +16,22 @@ Reads all `.ts` and `.tsx` files, starts a local server, and opens the browser. 
 
 ```
 Options:
-  --port <number>   Server port (default: 3000)
+  --svg <view>      Output SVG to stdout (type-map, call-graph, module-graph)
+  --port <number>   Server port (default: random)
   --no-open         Don't open the browser
 ```
+
+### SVG output
+
+Generate diagrams directly from the command line:
+
+```bash
+code-explorer ./src --svg type-map > types.svg
+code-explorer ./src --svg call-graph > calls.svg
+code-explorer ./src --svg module-graph > modules.svg
+```
+
+Useful for CI pipelines, documentation, and README diagrams. Outputs to stdout so you can pipe or redirect.
 
 Requires Node.js 18+.
 
@@ -68,7 +81,7 @@ Build outputs: `dist/web/` (Vite, ~1.9 MB) and `dist/cli.mjs` (esbuild, 3.5 KB).
 
 ## Tests
 
-118 tests covering analysis (types, call graphs, modules, multi-file projects), rendering (layout, SVG output, legends), and CLI (file collection, HTML injection, server):
+133 tests covering analysis (types, call graphs, modules, multi-file projects), rendering (layout, SVG output, legends), and CLI (file collection, HTML injection, server, SVG output):
 
 ```bash
 npm test

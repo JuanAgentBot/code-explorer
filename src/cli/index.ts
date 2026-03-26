@@ -6,12 +6,23 @@ import { exec } from "node:child_process";
 import { platform } from "node:os";
 import { collectFiles } from "./files.js";
 import { startServer } from "./server.js";
+import { renderSvg, type ViewName, VIEW_NAMES } from "./svg.js";
 
 const MAX_FILES_WARN = 200;
+
+const USAGE = `Usage: code-explorer <directory> [options]
+
+Options:
+  --svg <view>   Output SVG to stdout instead of starting a server.
+                 Views: ${VIEW_NAMES.join(", ")}
+  --port PORT    Port for the web server (default: random)
+  --no-open      Don't open the browser automatically
+  -h, --help     Show this help message`;
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: {
+    svg: { type: "string" },
     port: { type: "string", default: "0" },
     "no-open": { type: "boolean", default: false },
     help: { type: "boolean", short: "h" },
@@ -20,9 +31,7 @@ const { values, positionals } = parseArgs({
 
 if (values.help || positionals.length === 0) {
   const code = positionals.length === 0 && !values.help ? 1 : 0;
-  console.error(
-    "Usage: code-explorer <directory> [--port PORT] [--no-open]",
-  );
+  console.error(USAGE);
   process.exit(code);
 }
 
@@ -52,8 +61,20 @@ if (files.length > MAX_FILES_WARN) {
   );
 }
 
-// Locate built web assets relative to this script.
-// When bundled: dist/cli.mjs -> dist/web/
+// SVG output mode: analyze, render, print to stdout, exit.
+if (values.svg !== undefined) {
+  const view = values.svg as string;
+  if (!VIEW_NAMES.includes(view as ViewName)) {
+    console.error(`Unknown view: ${view}`);
+    console.error(`Available views: ${VIEW_NAMES.join(", ")}`);
+    process.exit(1);
+  }
+  const svg = renderSvg(files, view as ViewName);
+  process.stdout.write(svg);
+  process.exit(0);
+}
+
+// Web server mode: start server, open browser.
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const webDir = join(scriptDir, "web");
 
