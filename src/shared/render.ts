@@ -67,7 +67,7 @@ interface LayoutEdge {
  * above it. Pass reversed edges to invert direction (e.g. for type
  * hierarchies where parents should be on top).
  */
-function layeredLayout(
+export function layeredLayout(
   nodeIds: string[],
   edges: LayoutEdge[],
   getSize: (id: string) => { width: number; height: number },
