@@ -28,33 +28,66 @@ import {
 
 // --- View definitions ---
 
+interface RenderResult {
+  svg: string;
+  stats: string;
+}
+
 interface ViewConfig {
   label: string;
   sample: string;
-  render: (code: string) => string;
+  render: (code: string) => RenderResult;
   dotColor: string;
   inputLabel: string;
+}
+
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
 }
 
 const VIEWS: Record<ViewType, ViewConfig> = {
   types: {
     label: "Type Map",
     sample: TYPE_MAP_SAMPLE,
-    render: (code) => renderTypeMap(analyzeTypes(code)),
+    render: (code) => {
+      const result = analyzeTypes(code);
+      return {
+        svg: renderTypeMap(result),
+        stats: result.nodes.length
+          ? `${plural(result.nodes.length, "type")} · ${plural(result.edges.length, "edge")}`
+          : "",
+      };
+    },
     dotColor: "var(--accent)",
     inputLabel: "input.ts",
   },
   calls: {
     label: "Call Graph",
     sample: CALL_GRAPH_SAMPLE,
-    render: (code) => renderCallGraph(analyzeCallGraph(code)),
+    render: (code) => {
+      const result = analyzeCallGraph(code);
+      return {
+        svg: renderCallGraph(result),
+        stats: result.nodes.length
+          ? `${plural(result.nodes.length, "function")} · ${plural(result.edges.length, "call")}`
+          : "",
+      };
+    },
     dotColor: "var(--orange)",
     inputLabel: "input.ts",
   },
   modules: {
     label: "Module Graph",
     sample: MODULE_GRAPH_SAMPLE,
-    render: (code) => renderModuleGraph(analyzeModules(parseFiles(code))),
+    render: (code) => {
+      const result = analyzeModules(parseFiles(code));
+      return {
+        svg: renderModuleGraph(result),
+        stats: result.nodes.length
+          ? `${plural(result.nodes.length, "file")} · ${plural(result.edges.length, "import")}`
+          : "",
+      };
+    },
     dotColor: "var(--cyan)",
     inputLabel: "files",
   },
@@ -110,6 +143,7 @@ const diagramOutput = document.getElementById("diagram-output")!;
 const editorContainer = document.getElementById("code-input")!;
 const inputLabel = document.getElementById("input-label")!;
 const diagramDot = document.getElementById("diagram-dot")!;
+const diagramStats = document.getElementById("diagram-stats")!;
 
 // Load initial state from URL hash
 const hashState = readFromHash();
@@ -179,8 +213,9 @@ function renderDiagram(code: string) {
   }
 
   try {
-    const svg = VIEWS[activeView].render(code);
+    const { svg, stats } = VIEWS[activeView].render(code);
     diagramOutput.innerHTML = svg;
+    diagramStats.textContent = stats;
 
     if (diagramOutput.querySelector("svg")) {
       panZoom = setupPanZoom(diagramOutput);
@@ -188,6 +223,7 @@ function renderDiagram(code: string) {
     }
   } catch (e) {
     diagramOutput.innerHTML = `<div class="empty-state">Error: ${(e as Error).message}</div>`;
+    diagramStats.textContent = "";
   }
 }
 

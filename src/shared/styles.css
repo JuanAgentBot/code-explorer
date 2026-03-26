@@ -323,6 +323,23 @@ a:hover {
   );
 }
 
+/* --- Diagram stats --- */
+
+.diagram-stats {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  opacity: 0.6;
+}
+
+.diagram-stats::before {
+  content: "·";
+  margin: 0 0.4rem;
+}
+
+.diagram-stats:empty {
+  display: none;
+}
+
 /* --- Panel header buttons --- */
 
 .panel-header {
