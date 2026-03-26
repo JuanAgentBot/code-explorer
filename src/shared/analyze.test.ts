@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { analyzeTypes, analyzeCallGraph, analyzeModules } from "./analyze";
+import {
+  analyzeTypes,
+  analyzeCallGraph,
+  analyzeModules,
+  analyzeTypesProject,
+  analyzeCallGraphProject,
+  parseFiles,
+} from "./analyze";
 
 // --- analyzeTypes ---
 
@@ -643,6 +650,280 @@ describe("analyzeModules", () => {
       },
     ]);
 
+    expect(result.edges).toHaveLength(0);
+  });
+});
+
+// --- parseFiles ---
+
+describe("parseFiles", () => {
+  it("parses multiple files from separator format", () => {
+    const input = [
+      "// --- utils.ts ---",
+      "export function add() {}",
+      "// --- main.ts ---",
+      'import { add } from "./utils";',
+    ].join("\n");
+
+    const files = parseFiles(input);
+    expect(files).toHaveLength(2);
+    expect(files[0].path).toBe("utils.ts");
+    expect(files[0].content).toContain("export function add");
+    expect(files[1].path).toBe("main.ts");
+    expect(files[1].content).toContain("import { add }");
+  });
+
+  it("handles nested paths", () => {
+    const input = [
+      "// --- src/lib/math.ts ---",
+      "export const PI = 3.14;",
+    ].join("\n");
+
+    const files = parseFiles(input);
+    expect(files).toHaveLength(1);
+    expect(files[0].path).toBe("src/lib/math.ts");
+  });
+
+  it("returns empty array for input with no separators", () => {
+    const files = parseFiles("const x = 1;");
+    expect(files).toHaveLength(0);
+  });
+
+  it("returns empty array for empty input", () => {
+    const files = parseFiles("");
+    expect(files).toHaveLength(0);
+  });
+});
+
+// --- analyzeTypesProject ---
+
+describe("analyzeTypesProject", () => {
+  it("detects cross-file extends", () => {
+    const result = analyzeTypesProject([
+      {
+        path: "types.ts",
+        content: "interface Entity { id: string; }",
+      },
+      {
+        path: "user.ts",
+        content: "interface User extends Entity { name: string; }",
+      },
+    ]);
+
+    expect(result.nodes).toHaveLength(2);
+    expect(result.edges).toContainEqual({
+      from: "User",
+      to: "Entity",
+      kind: "extends",
+    });
+  });
+
+  it("detects cross-file references in member types", () => {
+    const result = analyzeTypesProject([
+      {
+        path: "address.ts",
+        content: "interface Address { street: string; city: string; }",
+      },
+      {
+        path: "person.ts",
+        content: "interface Person { name: string; home: Address; }",
+      },
+    ]);
+
+    expect(result.edges).toContainEqual({
+      from: "Person",
+      to: "Address",
+      kind: "references",
+    });
+  });
+
+  it("detects cross-file implements", () => {
+    const result = analyzeTypesProject([
+      {
+        path: "serializable.ts",
+        content: "interface Serializable { serialize(): string; }",
+      },
+      {
+        path: "config.ts",
+        content:
+          'class Config implements Serializable { serialize() { return ""; } }',
+      },
+    ]);
+
+    expect(result.edges).toContainEqual({
+      from: "Config",
+      to: "Serializable",
+      kind: "implements",
+    });
+  });
+
+  it("detects cross-file type alias references", () => {
+    const result = analyzeTypesProject([
+      {
+        path: "item.ts",
+        content: "interface Item { id: string; price: number; }",
+      },
+      {
+        path: "cart.ts",
+        content: "type Cart = { items: Item[]; total: number };",
+      },
+    ]);
+
+    expect(result.edges).toContainEqual({
+      from: "Cart",
+      to: "Item",
+      kind: "references",
+    });
+  });
+
+  it("deduplicates nodes with the same name across files", () => {
+    const result = analyzeTypesProject([
+      {
+        path: "a.ts",
+        content: "interface Config { host: string; }",
+      },
+      {
+        path: "b.ts",
+        content: "interface Config { port: number; }",
+      },
+    ]);
+
+    expect(result.nodes).toHaveLength(1);
+    expect(result.nodes[0].name).toBe("Config");
+  });
+
+  it("handles empty files", () => {
+    const result = analyzeTypesProject([
+      { path: "empty.ts", content: "" },
+      {
+        path: "types.ts",
+        content: "interface User { name: string; }",
+      },
+    ]);
+
+    expect(result.nodes).toHaveLength(1);
+    expect(result.nodes[0].name).toBe("User");
+  });
+
+  it("handles single file (same as analyzeTypes)", () => {
+    const result = analyzeTypesProject([
+      {
+        path: "types.ts",
+        content: `
+          interface Animal { name: string; }
+          interface Dog extends Animal { breed: string; }
+        `,
+      },
+    ]);
+
+    expect(result.nodes).toHaveLength(2);
+    expect(result.edges).toContainEqual({
+      from: "Dog",
+      to: "Animal",
+      kind: "extends",
+    });
+  });
+
+  it("handles empty file list", () => {
+    const result = analyzeTypesProject([]);
+    expect(result.nodes).toHaveLength(0);
+    expect(result.edges).toHaveLength(0);
+  });
+});
+
+// --- analyzeCallGraphProject ---
+
+describe("analyzeCallGraphProject", () => {
+  it("detects cross-file function calls", () => {
+    const result = analyzeCallGraphProject([
+      {
+        path: "utils.ts",
+        content: "function validate() { return true; }",
+      },
+      {
+        path: "main.ts",
+        content: "function process() { validate(); }",
+      },
+    ]);
+
+    expect(result.nodes).toHaveLength(2);
+    expect(result.edges).toContainEqual({
+      from: "process",
+      to: "validate",
+    });
+  });
+
+  it("detects cross-file arrow function calls", () => {
+    const result = analyzeCallGraphProject([
+      {
+        path: "math.ts",
+        content: "const add = (a: number, b: number) => a + b;",
+      },
+      {
+        path: "calc.ts",
+        content: "function compute() { return add(1, 2); }",
+      },
+    ]);
+
+    expect(result.edges).toContainEqual({
+      from: "compute",
+      to: "add",
+    });
+  });
+
+  it("detects cross-file method calls by unqualified name", () => {
+    const result = analyzeCallGraphProject([
+      {
+        path: "service.ts",
+        content: `
+          class Service {
+            fetch() { return []; }
+          }
+        `,
+      },
+      {
+        path: "handler.ts",
+        content: "function handle() { fetch(); }",
+      },
+    ]);
+
+    expect(result.edges).toContainEqual({
+      from: "handle",
+      to: "Service.fetch",
+    });
+  });
+
+  it("deduplicates nodes with the same name across files", () => {
+    const result = analyzeCallGraphProject([
+      {
+        path: "a.ts",
+        content: "function init() {}",
+      },
+      {
+        path: "b.ts",
+        content: "function init() {}",
+      },
+    ]);
+
+    expect(result.nodes).toHaveLength(1);
+  });
+
+  it("handles empty files", () => {
+    const result = analyzeCallGraphProject([
+      { path: "empty.ts", content: "" },
+      {
+        path: "main.ts",
+        content: "function main() {}",
+      },
+    ]);
+
+    expect(result.nodes).toHaveLength(1);
+    expect(result.nodes[0].name).toBe("main");
+  });
+
+  it("handles empty file list", () => {
+    const result = analyzeCallGraphProject([]);
+    expect(result.nodes).toHaveLength(0);
     expect(result.edges).toHaveLength(0);
   });
 });

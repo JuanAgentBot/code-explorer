@@ -21,7 +21,10 @@ export interface TypeMapResult {
   edges: TypeEdge[];
 }
 
-export function analyzeTypes(code: string): TypeMapResult {
+export function analyzeTypes(
+  code: string,
+  externalNames?: Set<string>,
+): TypeMapResult {
   const sourceFile = ts.createSourceFile(
     "input.ts",
     code,
@@ -31,7 +34,7 @@ export function analyzeTypes(code: string): TypeMapResult {
 
   const nodes: TypeNode[] = [];
   const edges: TypeEdge[] = [];
-  const knownNames = new Set<string>();
+  const knownNames = new Set<string>(externalNames);
 
   // First pass: collect all declared type names
   ts.forEachChild(sourceFile, (node) => {
@@ -204,7 +207,10 @@ export interface CallGraphResult {
   edges: CallEdge[];
 }
 
-export function analyzeCallGraph(code: string): CallGraphResult {
+export function analyzeCallGraph(
+  code: string,
+  externalFunctions?: Set<string>,
+): CallGraphResult {
   const sourceFile = ts.createSourceFile(
     "input.ts",
     code,
@@ -214,7 +220,7 @@ export function analyzeCallGraph(code: string): CallGraphResult {
 
   const nodes: FunctionNode[] = [];
   const edges: CallEdge[] = [];
-  const knownFunctions = new Set<string>();
+  const knownFunctions = new Set<string>(externalFunctions);
 
   // Collect all function/method names
   function collectFunctions(node: ts.Node, className?: string) {
@@ -464,6 +470,184 @@ export function analyzeModules(
   }
 
   return { nodes, edges };
+}
+
+// --- Multi-file parser ---
+
+export function parseFiles(
+  input: string,
+): { path: string; content: string }[] {
+  const files: { path: string; content: string }[] = [];
+  const lines = input.split("\n");
+  let currentPath: string | null = null;
+  let currentLines: string[] = [];
+
+  for (const line of lines) {
+    const match = line.match(/^\/\/\s*---\s*(.+?)\s*---\s*$/);
+    if (match) {
+      if (currentPath) {
+        files.push({ path: currentPath, content: currentLines.join("\n") });
+      }
+      currentPath = match[1].trim();
+      currentLines = [];
+    } else {
+      currentLines.push(line);
+    }
+  }
+
+  if (currentPath) {
+    files.push({ path: currentPath, content: currentLines.join("\n") });
+  }
+
+  return files;
+}
+
+// --- Multi-file analysis ---
+
+/**
+ * Analyze types across multiple files. Cross-file references (extends,
+ * implements, references) are detected by collecting all type names from
+ * all files first, then analyzing each file with the full name set.
+ */
+export function analyzeTypesProject(
+  files: { path: string; content: string }[],
+): TypeMapResult {
+  // Pass 1: collect all type names across all files
+  const allNames = new Set<string>();
+  for (const file of files) {
+    const sourceFile = ts.createSourceFile(
+      file.path,
+      file.content,
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    ts.forEachChild(sourceFile, (node) => {
+      const name = getDeclarationName(node);
+      if (name) allNames.add(name);
+    });
+  }
+
+  // Pass 2: analyze each file with the full name set for cross-file edge detection
+  const allNodes: TypeNode[] = [];
+  const allEdges: TypeEdge[] = [];
+
+  for (const file of files) {
+    const result = analyzeTypes(file.content, allNames);
+    allNodes.push(...result.nodes);
+    allEdges.push(...result.edges);
+  }
+
+  // Deduplicate nodes (same name from different files)
+  const seenNodes = new Set<string>();
+  const uniqueNodes = allNodes.filter((n) => {
+    if (seenNodes.has(n.name)) return false;
+    seenNodes.add(n.name);
+    return true;
+  });
+
+  // Deduplicate edges
+  const edgeKeys = new Set<string>();
+  const uniqueEdges = allEdges.filter((e) => {
+    const key = `${e.from}->${e.to}:${e.kind}`;
+    if (edgeKeys.has(key)) return false;
+    edgeKeys.add(key);
+    return true;
+  });
+
+  return { nodes: uniqueNodes, edges: uniqueEdges };
+}
+
+/**
+ * Analyze call graphs across multiple files. Cross-file calls are detected
+ * by collecting all function names from all files first, then analyzing
+ * each file with the full name set.
+ */
+export function analyzeCallGraphProject(
+  files: { path: string; content: string }[],
+): CallGraphResult {
+  // Pass 1: collect all function/method names across all files
+  const allFunctions = new Set<string>();
+  for (const file of files) {
+    const sourceFile = ts.createSourceFile(
+      file.path,
+      file.content,
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    collectFunctionNames(sourceFile, allFunctions);
+  }
+
+  // Pass 2: analyze each file with the full name set for cross-file call detection
+  const allNodes: FunctionNode[] = [];
+  const allEdges: CallEdge[] = [];
+
+  for (const file of files) {
+    const result = analyzeCallGraph(file.content, allFunctions);
+    allNodes.push(...result.nodes);
+    allEdges.push(...result.edges);
+  }
+
+  // Deduplicate nodes (same name from different files)
+  const seenNodes = new Set<string>();
+  const uniqueNodes = allNodes.filter((n) => {
+    if (seenNodes.has(n.name)) return false;
+    seenNodes.add(n.name);
+    return true;
+  });
+
+  // Deduplicate edges
+  const edgeKeys = new Set<string>();
+  const uniqueEdges = allEdges.filter((e) => {
+    const key = `${e.from}->${e.to}`;
+    if (edgeKeys.has(key)) return false;
+    edgeKeys.add(key);
+    return true;
+  });
+
+  return { nodes: uniqueNodes, edges: uniqueEdges };
+}
+
+/** Collect function/method names from a source file into the given set. */
+function collectFunctionNames(
+  sourceFile: ts.SourceFile,
+  names: Set<string>,
+  className?: string,
+) {
+  ts.forEachChild(sourceFile, function visit(node) {
+    if (ts.isFunctionDeclaration(node) && node.name) {
+      names.add(node.name.text);
+    }
+
+    if (ts.isMethodDeclaration(node) && node.name) {
+      const methodName = node.name.getText(sourceFile);
+      const fullName = className ? `${className}.${methodName}` : methodName;
+      names.add(fullName);
+      names.add(methodName);
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      node.name &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      ts.isArrowFunction(node.initializer)
+    ) {
+      names.add(node.name.text);
+    }
+
+    if (ts.isClassDeclaration(node) && node.name) {
+      ts.forEachChild(node, (child) => {
+        if (ts.isMethodDeclaration(child) && child.name) {
+          const methodName = child.name.getText(sourceFile);
+          names.add(`${node.name!.text}.${methodName}`);
+          names.add(methodName);
+        }
+      });
+      return;
+    }
+
+    ts.forEachChild(node, visit);
+  });
 }
 
 // --- Helpers ---

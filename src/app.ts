@@ -2,6 +2,7 @@ import {
   analyzeTypes,
   analyzeCallGraph,
   analyzeModules,
+  parseFiles,
 } from "./shared/analyze";
 import {
   renderTypeMap,
@@ -94,34 +95,6 @@ const VIEWS: Record<ViewType, ViewConfig> = {
 };
 
 const VIEW_ORDER: ViewType[] = ["types", "calls", "modules"];
-
-// --- Multi-file parser (for module graph) ---
-
-function parseFiles(input: string): { path: string; content: string }[] {
-  const files: { path: string; content: string }[] = [];
-  const lines = input.split("\n");
-  let currentPath: string | null = null;
-  let currentLines: string[] = [];
-
-  for (const line of lines) {
-    const match = line.match(/^\/\/\s*---\s*(.+?)\s*---\s*$/);
-    if (match) {
-      if (currentPath) {
-        files.push({ path: currentPath, content: currentLines.join("\n") });
-      }
-      currentPath = match[1].trim();
-      currentLines = [];
-    } else {
-      currentLines.push(line);
-    }
-  }
-
-  if (currentPath) {
-    files.push({ path: currentPath, content: currentLines.join("\n") });
-  }
-
-  return files;
-}
 
 // --- App state ---
 
