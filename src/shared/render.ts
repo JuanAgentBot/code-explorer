@@ -36,6 +36,9 @@ function createSvgElement(
     <marker id="arrowhead-call" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
       <polygon points="0 0, 10 3.5, 0 7" fill="#fb923c"/>
     </marker>
+    <marker id="arrowhead-cycle" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#ef4444"/>
+    </marker>
   </defs>
   ${content}
 </svg>`;
@@ -537,6 +540,12 @@ export function renderModuleGraph(data: ModuleGraphResult): string {
     maxY = Math.max(maxY, ln.y + ln.height);
   }
 
+  // Build set of cycle edge keys for fast lookup
+  const cycleEdges = data.cycleEdges ?? [];
+  const cycleEdgeKeys = new Set(
+    cycleEdges.map((e) => `${e.from}->${e.to}`),
+  );
+
   let content = "";
 
   // Draw edges (direction-agnostic)
@@ -544,6 +553,10 @@ export function renderModuleGraph(data: ModuleGraphResult): string {
     const from = layout.get(edge.from);
     const to = layout.get(edge.to);
     if (!from || !to) continue;
+
+    const isCycle = cycleEdgeKeys.has(`${edge.from}->${edge.to}`);
+    const edgeColor = isCycle ? "#ef4444" : "#22d3ee";
+    const markerEnd = isCycle ? "url(#arrowhead-cycle)" : "url(#arrowhead)";
 
     const fromCy = from.y + from.height / 2;
     const toCy = to.y + to.height / 2;
@@ -556,28 +569,37 @@ export function renderModuleGraph(data: ModuleGraphResult): string {
 
     const midY = (y1 + y2) / 2;
     content += `<g class="graph-edge" data-edge-from="${escapeHtml(edge.from)}" data-edge-to="${escapeHtml(edge.to)}">`;
-    content += `<path d="M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}" fill="none" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead)" opacity="0.5"/>`;
+    content += `<path d="M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}" fill="none" stroke="${edgeColor}" stroke-width="1.5" marker-end="${markerEnd}" opacity="${isCycle ? "0.8" : "0.5"}"/>`;
 
     // Label
     const labelX = (x1 + x2) / 2;
     const labelY = midY - 4;
     const label = edge.imports.join(", ");
     if (label.length < 40) {
-      content += `<text x="${labelX}" y="${labelY}" text-anchor="middle" fill="#8888a0" font-size="8">${escapeHtml(label)}</text>`;
+      content += `<text x="${labelX}" y="${labelY}" text-anchor="middle" fill="${isCycle ? "#ef4444" : "#8888a0"}" font-size="8">${escapeHtml(label)}</text>`;
     }
     content += `</g>`;
+  }
+
+  // Build set of nodes involved in cycles
+  const cycleNodes = new Set<string>();
+  for (const e of cycleEdges) {
+    cycleNodes.add(e.from);
+    cycleNodes.add(e.to);
   }
 
   // Draw nodes
   for (const node of data.nodes) {
     const ln = layout.get(node.path)!;
+    const inCycle = cycleNodes.has(node.path);
+    const nodeColor = inCycle ? "#ef4444" : "#22d3ee";
 
     content += `<g class="graph-node" data-node-id="${escapeHtml(node.path)}" style="cursor:pointer">`;
-    content += `<rect x="${ln.x}" y="${ln.y}" width="${ln.width}" height="${ln.height}" rx="6" fill="#1a1a2e" stroke="#22d3ee" stroke-width="1.5"/>`;
+    content += `<rect x="${ln.x}" y="${ln.y}" width="${ln.width}" height="${ln.height}" rx="6" fill="#1a1a2e" stroke="${nodeColor}" stroke-width="1.5"/>`;
 
     // Filename
     const filename = node.path.split("/").pop() ?? node.path;
-    content += `<text x="${ln.x + PADDING_X}" y="${ln.y + 22}" fill="#22d3ee" font-size="11" font-weight="bold">${escapeHtml(filename)}</text>`;
+    content += `<text x="${ln.x + PADDING_X}" y="${ln.y + 22}" fill="${nodeColor}" font-size="11" font-weight="bold">${escapeHtml(filename)}</text>`;
 
     // Full path if different
     if (filename !== node.path) {
@@ -596,6 +618,9 @@ export function renderModuleGraph(data: ModuleGraphResult): string {
     { color: "#22d3ee", label: "imports", dashed: false },
     { color: "#4ade80", label: "exports" },
   ];
+  if (cycleEdges.length > 0) {
+    legendItems.push({ color: "#ef4444", label: "circular", dashed: false });
+  }
   const legend = renderLegend(legendItems, 60, maxY + 30);
   content += legend.svg;
 

@@ -107,11 +107,16 @@ const VIEWS: Record<ViewType, ViewConfig> = {
     sample: MODULE_GRAPH_SAMPLE,
     render: (code) => {
       const result = analyzeModules(parseFiles(code));
+      let stats = "";
+      if (result.nodes.length) {
+        stats = `${plural(result.nodes.length, "file")} · ${plural(result.edges.length, "import")}`;
+        if (result.cycleEdges.length > 0) {
+          stats += ` · ${plural(result.cycleEdges.length, "cycle")}`;
+        }
+      }
       return {
         svg: renderModuleGraph(result),
-        stats: result.nodes.length
-          ? `${plural(result.nodes.length, "file")} · ${plural(result.edges.length, "import")}`
-          : "",
+        stats,
       };
     },
     dotColor: "var(--cyan)",

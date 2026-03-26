@@ -405,7 +405,7 @@ describe("renderCallGraph", () => {
 
 describe("renderModuleGraph", () => {
   it("shows message when there are no modules", () => {
-    const svg = renderModuleGraph({ nodes: [], edges: [] });
+    const svg = renderModuleGraph({ nodes: [], edges: [], cycleEdges: [] });
     expect(svg).toContain("<svg");
     expect(svg).toContain("No modules found");
   });
@@ -414,6 +414,7 @@ describe("renderModuleGraph", () => {
     const svg = renderModuleGraph({
       nodes: [{ path: "index.ts", exports: ["main"] }],
       edges: [],
+      cycleEdges: [],
     });
     expect(svg).toContain("<svg");
     expect(svg).toContain('data-node-id="index.ts"');
@@ -424,6 +425,7 @@ describe("renderModuleGraph", () => {
     const svg = renderModuleGraph({
       nodes: [{ path: "utils.ts", exports: ["add", "subtract"] }],
       edges: [],
+      cycleEdges: [],
     });
     expect(svg).toContain("exports:");
     expect(svg).toContain("add, subtract");
@@ -436,6 +438,7 @@ describe("renderModuleGraph", () => {
         { path: "utils.ts", exports: ["helper"] },
       ],
       edges: [{ from: "app.ts", to: "utils.ts", imports: ["helper"] }],
+      cycleEdges: [],
     });
     expect(svg).toContain('data-edge-from="app.ts"');
     expect(svg).toContain('data-edge-to="utils.ts"');
@@ -446,6 +449,7 @@ describe("renderModuleGraph", () => {
     const svg = renderModuleGraph({
       nodes: [{ path: "lib/utils.ts", exports: [] }],
       edges: [],
+      cycleEdges: [],
     });
     // Should show both the filename and full path
     expect(svg).toContain("utils.ts");
@@ -460,6 +464,7 @@ describe("renderModuleGraph", () => {
         { path: "b.ts", exports: longImports },
       ],
       edges: [{ from: "a.ts", to: "b.ts", imports: longImports }],
+      cycleEdges: [],
     });
     // Label text should be omitted when join exceeds 40 chars
     expect(svg).toContain('data-edge-from="a.ts"');
@@ -474,9 +479,84 @@ describe("renderModuleGraph", () => {
     const svg = renderModuleGraph({
       nodes: [{ path: "index.ts", exports: [] }],
       edges: [],
+      cycleEdges: [],
     });
     expect(svg).toContain('class="legend"');
     expect(svg).toContain("imports");
     expect(svg).toContain("exports");
+  });
+
+  it("renders cycle edges in red", () => {
+    const svg = renderModuleGraph({
+      nodes: [
+        { path: "a.ts", exports: ["x"] },
+        { path: "b.ts", exports: ["y"] },
+      ],
+      edges: [
+        { from: "a.ts", to: "b.ts", imports: ["y"] },
+        { from: "b.ts", to: "a.ts", imports: ["x"] },
+      ],
+      cycleEdges: [
+        { from: "a.ts", to: "b.ts" },
+        { from: "b.ts", to: "a.ts" },
+      ],
+    });
+    // Cycle edges should use red color
+    expect(svg).toContain('stroke="#ef4444"');
+    expect(svg).toContain("arrowhead-cycle");
+  });
+
+  it("highlights nodes involved in cycles in red", () => {
+    const svg = renderModuleGraph({
+      nodes: [
+        { path: "a.ts", exports: ["x"] },
+        { path: "b.ts", exports: ["y"] },
+        { path: "c.ts", exports: ["z"] },
+      ],
+      edges: [
+        { from: "a.ts", to: "b.ts", imports: ["y"] },
+        { from: "b.ts", to: "a.ts", imports: ["x"] },
+        { from: "a.ts", to: "c.ts", imports: ["z"] },
+      ],
+      cycleEdges: [
+        { from: "a.ts", to: "b.ts" },
+        { from: "b.ts", to: "a.ts" },
+      ],
+    });
+    // a.ts and b.ts nodes should have red stroke, c.ts should have cyan
+    const nodeA = svg.match(/<g class="graph-node" data-node-id="a\.ts"[^>]*>[\s\S]*?<\/g>/)?.[0];
+    const nodeC = svg.match(/<g class="graph-node" data-node-id="c\.ts"[^>]*>[\s\S]*?<\/g>/)?.[0];
+    expect(nodeA).toContain('stroke="#ef4444"');
+    expect(nodeC).toContain('stroke="#22d3ee"');
+  });
+
+  it("adds circular to legend when cycles exist", () => {
+    const svg = renderModuleGraph({
+      nodes: [
+        { path: "a.ts", exports: [] },
+        { path: "b.ts", exports: [] },
+      ],
+      edges: [
+        { from: "a.ts", to: "b.ts", imports: [] },
+        { from: "b.ts", to: "a.ts", imports: [] },
+      ],
+      cycleEdges: [
+        { from: "a.ts", to: "b.ts" },
+        { from: "b.ts", to: "a.ts" },
+      ],
+    });
+    expect(svg).toContain("circular");
+  });
+
+  it("omits circular from legend when no cycles", () => {
+    const svg = renderModuleGraph({
+      nodes: [
+        { path: "a.ts", exports: [] },
+        { path: "b.ts", exports: [] },
+      ],
+      edges: [{ from: "a.ts", to: "b.ts", imports: [] }],
+      cycleEdges: [],
+    });
+    expect(svg).not.toContain("circular");
   });
 });

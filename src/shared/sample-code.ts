@@ -157,6 +157,7 @@ export class PostController {}
 
 // --- src/services/user.ts ---
 import { createDatabase } from "../db/connection";
+import { authMiddleware } from "../middleware/auth";
 
 export class UserService {}
 

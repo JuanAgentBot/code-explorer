@@ -653,6 +653,70 @@ describe("analyzeModules", () => {
 
     expect(result.edges).toHaveLength(0);
   });
+
+  // --- Cycle detection ---
+
+  it("detects no cycles in a DAG", () => {
+    const result = analyzeModules([
+      { path: "a.ts", content: `import { b } from "./b";` },
+      { path: "b.ts", content: `import { c } from "./c";` },
+      { path: "c.ts", content: `export const c = 1;` },
+    ]);
+
+    expect(result.cycleEdges).toHaveLength(0);
+  });
+
+  it("detects a direct circular dependency (A <-> B)", () => {
+    const result = analyzeModules([
+      { path: "a.ts", content: `import { y } from "./b"; export const x = 1;` },
+      { path: "b.ts", content: `import { x } from "./a"; export const y = 2;` },
+    ]);
+
+    expect(result.cycleEdges).toHaveLength(2);
+    expect(result.cycleEdges).toContainEqual({ from: "a.ts", to: "b.ts" });
+    expect(result.cycleEdges).toContainEqual({ from: "b.ts", to: "a.ts" });
+  });
+
+  it("detects an indirect circular dependency (A -> B -> C -> A)", () => {
+    const result = analyzeModules([
+      { path: "a.ts", content: `import { b } from "./b"; export const a = 1;` },
+      { path: "b.ts", content: `import { c } from "./c"; export const b = 2;` },
+      { path: "c.ts", content: `import { a } from "./a"; export const c = 3;` },
+    ]);
+
+    expect(result.cycleEdges).toHaveLength(3);
+    expect(result.cycleEdges).toContainEqual({ from: "a.ts", to: "b.ts" });
+    expect(result.cycleEdges).toContainEqual({ from: "b.ts", to: "c.ts" });
+    expect(result.cycleEdges).toContainEqual({ from: "c.ts", to: "a.ts" });
+  });
+
+  it("distinguishes cycle edges from non-cycle edges", () => {
+    const result = analyzeModules([
+      { path: "a.ts", content: `import { b } from "./b"; export const a = 1;` },
+      { path: "b.ts", content: `import { a } from "./a"; import { c } from "./c"; export const b = 2;` },
+      { path: "c.ts", content: `export const c = 3;` },
+    ]);
+
+    // a <-> b is a cycle, b -> c is not
+    expect(result.cycleEdges).toHaveLength(2);
+    expect(result.cycleEdges).toContainEqual({ from: "a.ts", to: "b.ts" });
+    expect(result.cycleEdges).toContainEqual({ from: "b.ts", to: "a.ts" });
+    // b -> c should NOT be in cycleEdges
+    expect(result.cycleEdges).not.toContainEqual({ from: "b.ts", to: "c.ts" });
+  });
+
+  it("returns empty cycleEdges for a single file", () => {
+    const result = analyzeModules([
+      { path: "a.ts", content: `export const x = 1;` },
+    ]);
+
+    expect(result.cycleEdges).toHaveLength(0);
+  });
+
+  it("returns empty cycleEdges for empty file list", () => {
+    const result = analyzeModules([]);
+    expect(result.cycleEdges).toHaveLength(0);
+  });
 });
 
 // --- parseFiles ---

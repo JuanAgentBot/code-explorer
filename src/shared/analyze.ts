@@ -375,6 +375,7 @@ export interface ImportEdge {
 export interface ModuleGraphResult {
   nodes: ModuleNode[];
   edges: ImportEdge[];
+  cycleEdges: { from: string; to: string }[];
 }
 
 export function analyzeModules(
@@ -469,7 +470,87 @@ export function analyzeModules(
     }
   }
 
-  return { nodes, edges };
+  return { nodes, edges, cycleEdges: findCycleEdges(nodes.map(n => n.path), edges) };
+}
+
+// --- Cycle detection ---
+
+/**
+ * Find edges that are part of circular dependencies using Tarjan's SCC algorithm.
+ * An edge is a cycle edge if both endpoints are in the same strongly connected
+ * component (size > 1), or if it's a self-edge (from === to).
+ */
+function findCycleEdges(
+  nodePaths: string[],
+  edges: { from: string; to: string }[],
+): { from: string; to: string }[] {
+  const adj = new Map<string, string[]>();
+  for (const path of nodePaths) adj.set(path, []);
+  for (const e of edges) {
+    adj.get(e.from)?.push(e.to);
+  }
+
+  // Tarjan's SCC algorithm
+  let index = 0;
+  const nodeIndex = new Map<string, number>();
+  const lowlink = new Map<string, number>();
+  const onStack = new Set<string>();
+  const stack: string[] = [];
+  const sccs: string[][] = [];
+
+  function strongConnect(v: string) {
+    nodeIndex.set(v, index);
+    lowlink.set(v, index);
+    index++;
+    stack.push(v);
+    onStack.add(v);
+
+    for (const w of adj.get(v) ?? []) {
+      if (!nodeIndex.has(w)) {
+        strongConnect(w);
+        lowlink.set(v, Math.min(lowlink.get(v)!, lowlink.get(w)!));
+      } else if (onStack.has(w)) {
+        lowlink.set(v, Math.min(lowlink.get(v)!, nodeIndex.get(w)!));
+      }
+    }
+
+    if (lowlink.get(v) === nodeIndex.get(v)) {
+      const scc: string[] = [];
+      let w: string;
+      do {
+        w = stack.pop()!;
+        onStack.delete(w);
+        scc.push(w);
+      } while (w !== v);
+      sccs.push(scc);
+    }
+  }
+
+  for (const path of nodePaths) {
+    if (!nodeIndex.has(path)) {
+      strongConnect(path);
+    }
+  }
+
+  // Map nodes in non-trivial SCCs (size > 1) to their SCC index
+  const nodeToScc = new Map<string, number>();
+  for (let i = 0; i < sccs.length; i++) {
+    if (sccs[i].length > 1) {
+      for (const node of sccs[i]) {
+        nodeToScc.set(node, i);
+      }
+    }
+  }
+
+  // An edge is a cycle edge if both endpoints are in the same non-trivial SCC
+  return edges
+    .filter((e) => {
+      if (e.from === e.to) return true; // self-edge
+      const sccFrom = nodeToScc.get(e.from);
+      const sccTo = nodeToScc.get(e.to);
+      return sccFrom !== undefined && sccFrom === sccTo;
+    })
+    .map((e) => ({ from: e.from, to: e.to }));
 }
 
 // --- Multi-file parser ---
