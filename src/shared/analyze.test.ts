@@ -200,6 +200,78 @@ describe("analyzeTypes", () => {
     const kinds = result.nodes.map((n) => n.kind).sort();
     expect(kinds).toEqual(["class", "enum", "interface", "type"]);
   });
+
+  it("extracts generic type parameters from an interface", () => {
+    const result = analyzeTypes(`
+      interface Container<T> {
+        value: T;
+      }
+    `);
+
+    expect(result.nodes[0]).toMatchObject({
+      name: "Container",
+      typeParams: "<T>",
+    });
+  });
+
+  it("extracts constrained type parameters", () => {
+    const result = analyzeTypes(`
+      interface Repository<T extends Entity> {
+        findById(id: string): T;
+      }
+      interface Entity { id: string; }
+    `);
+
+    expect(result.nodes.find((n) => n.name === "Repository")).toMatchObject({
+      typeParams: "<T extends Entity>",
+    });
+  });
+
+  it("extracts multiple type parameters", () => {
+    const result = analyzeTypes(`
+      type Pair<A, B> = { first: A; second: B };
+    `);
+
+    expect(result.nodes[0]).toMatchObject({
+      name: "Pair",
+      typeParams: "<A, B>",
+    });
+  });
+
+  it("extracts type parameters with defaults", () => {
+    const result = analyzeTypes(`
+      interface Config<T = string> {
+        value: T;
+      }
+    `);
+
+    expect(result.nodes[0]).toMatchObject({
+      typeParams: "<T = string>",
+    });
+  });
+
+  it("extracts type parameters from classes", () => {
+    const result = analyzeTypes(`
+      class Stack<T> {
+        items: T[];
+        push(item: T) {}
+      }
+    `);
+
+    expect(result.nodes[0]).toMatchObject({
+      name: "Stack",
+      kind: "class",
+      typeParams: "<T>",
+    });
+  });
+
+  it("omits typeParams when there are none", () => {
+    const result = analyzeTypes(`
+      interface Simple { name: string; }
+    `);
+
+    expect(result.nodes[0].typeParams).toBeUndefined();
+  });
 });
 
 // --- analyzeCallGraph ---

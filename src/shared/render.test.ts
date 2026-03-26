@@ -297,6 +297,36 @@ describe("renderTypeMap", () => {
     expect(svg).toContain("implements");
     expect(svg).toContain("references");
   });
+
+  it("renders generic type parameters after the name", () => {
+    const svg = renderTypeMap({
+      nodes: [
+        {
+          name: "Container",
+          kind: "interface",
+          typeParams: "<T>",
+          members: [{ name: "value", type: "T" }],
+          position: { line: 1 },
+        },
+      ],
+      edges: [],
+    });
+    expect(svg).toContain("Container");
+    expect(svg).toContain("&lt;T&gt;");
+  });
+
+  it("does not render type params text when absent", () => {
+    const svg = renderTypeMap({
+      nodes: [
+        { name: "Simple", kind: "interface", members: [], position: { line: 1 } },
+      ],
+      edges: [],
+    });
+    // Only the name and kind label should appear, no extra text element for params
+    const nameMatches = svg.match(/Simple/g);
+    expect(nameMatches).toBeTruthy();
+    expect(svg).not.toContain("undefined");
+  });
 });
 
 // --- renderCallGraph ---

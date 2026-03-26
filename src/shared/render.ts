@@ -298,7 +298,8 @@ export function renderTypeMap(data: TypeMapResult): string {
 
   function nodeSize(nodeId: string): { width: number; height: number } {
     const node = data.nodes.find((n) => n.name === nodeId)!;
-    const titleWidth = node.name.length * 9 + node.kind.length * 7 + 40;
+    const displayName = node.name + (node.typeParams ?? "");
+    const titleWidth = displayName.length * 9 + node.kind.length * 7 + 40;
     const memberWidths = node.members.map(
       (m) => (m.name.length + m.type.length + 3) * CHAR_WIDTH + PADDING_X * 2,
     );
@@ -367,6 +368,10 @@ export function renderTypeMap(data: TypeMapResult): string {
 
     // Title
     content += `<text x="${ln.x + PADDING_X}" y="${ln.y + 21}" fill="${colors.header}" font-size="12" font-weight="bold">${escapeHtml(node.name)}</text>`;
+    if (node.typeParams) {
+      const nameWidth = node.name.length * 9;
+      content += `<text x="${ln.x + PADDING_X + nameWidth}" y="${ln.y + 21}" fill="${colors.header}" font-size="10" opacity="0.6">${escapeHtml(node.typeParams)}</text>`;
+    }
     content += `<text x="${ln.x + ln.width - PADDING_X}" y="${ln.y + 21}" fill="${colors.header}" font-size="9" text-anchor="end" opacity="0.6">${node.kind}</text>`;
 
     // Members

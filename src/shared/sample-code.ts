@@ -3,6 +3,11 @@ export const TYPE_MAP_SAMPLE = `interface Entity {
   createdAt: Date;
 }
 
+interface Repository<T extends Entity> {
+  findById(id: string): T | undefined;
+  save(entity: T): void;
+}
+
 interface User extends Entity {
   name: string;
   email: string;

@@ -9,6 +9,7 @@ const ts: typeof TS = (globalThis as any).ts;
 export interface TypeNode {
   name: string;
   kind: "interface" | "type" | "class" | "enum";
+  typeParams?: string;
   members: { name: string; type: string }[];
   position: { line: number };
 }
@@ -53,9 +54,11 @@ export function analyzeTypes(code: string): TypeMapResult {
           type: m.type?.getText(sourceFile) ?? "unknown",
         }));
 
+      const typeParams = getTypeParams(node.typeParameters, sourceFile);
       nodes.push({
         name,
         kind: "interface",
+        ...(typeParams && { typeParams }),
         members,
         position: { line: sourceFile.getLineAndCharacterOfPosition(node.pos).line },
       });
@@ -97,9 +100,11 @@ export function analyzeTypes(code: string): TypeMapResult {
         }
       }
 
+      const typeParams = getTypeParams(node.typeParameters, sourceFile);
       nodes.push({
         name,
         kind: "type",
+        ...(typeParams && { typeParams }),
         members,
         position: { line: sourceFile.getLineAndCharacterOfPosition(node.pos).line },
       });
@@ -128,9 +133,11 @@ export function analyzeTypes(code: string): TypeMapResult {
             : "method",
         }));
 
+      const typeParams = getTypeParams(node.typeParameters, sourceFile);
       nodes.push({
         name,
         kind: "class",
+        ...(typeParams && { typeParams }),
         members,
         position: { line: sourceFile.getLineAndCharacterOfPosition(node.pos).line },
       });
@@ -438,6 +445,24 @@ export function analyzeModules(
 }
 
 // --- Helpers ---
+
+function getTypeParams(
+  typeParameters: TS.NodeArray<TS.TypeParameterDeclaration> | undefined,
+  sourceFile: TS.SourceFile,
+): string | undefined {
+  if (!typeParameters || typeParameters.length === 0) return undefined;
+  const params = typeParameters.map((tp) => {
+    let text = tp.name.text;
+    if (tp.constraint) {
+      text += ` extends ${tp.constraint.getText(sourceFile)}`;
+    }
+    if (tp.default) {
+      text += ` = ${tp.default.getText(sourceFile)}`;
+    }
+    return text;
+  });
+  return `<${params.join(", ")}>`;
+}
 
 function getDeclarationName(node: TS.Node): string | undefined {
   if (
