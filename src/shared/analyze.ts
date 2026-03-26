@@ -474,6 +474,13 @@ export function analyzeModules(
 
 // --- Multi-file parser ---
 
+/** Format an array of files into the `// --- path ---` separator format used by the editor. */
+export function formatFiles(
+  files: { path: string; content: string }[],
+): string {
+  return files.map((f) => `// --- ${f.path} ---\n${f.content}`).join("\n");
+}
+
 export function parseFiles(
   input: string,
 ): { path: string; content: string }[] {

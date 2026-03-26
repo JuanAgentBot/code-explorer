@@ -6,6 +6,7 @@ import {
   analyzeTypesProject,
   analyzeCallGraphProject,
   parseFiles,
+  formatFiles,
 } from "./analyze";
 
 // --- analyzeTypes ---
@@ -692,6 +693,49 @@ describe("parseFiles", () => {
   it("returns empty array for empty input", () => {
     const files = parseFiles("");
     expect(files).toHaveLength(0);
+  });
+});
+
+// --- formatFiles ---
+
+describe("formatFiles", () => {
+  it("formats files into separator format", () => {
+    const files = [
+      { path: "utils.ts", content: "export function add() {}" },
+      { path: "main.ts", content: 'import { add } from "./utils";' },
+    ];
+    const result = formatFiles(files);
+    expect(result).toBe(
+      [
+        "// --- utils.ts ---",
+        "export function add() {}",
+        "// --- main.ts ---",
+        'import { add } from "./utils";',
+      ].join("\n"),
+    );
+  });
+
+  it("round-trips with parseFiles", () => {
+    const original = [
+      { path: "src/types.ts", content: "export interface User {\n  id: string;\n}" },
+      { path: "src/service.ts", content: "import { User } from './types';\nexport class UserService {}" },
+    ];
+    const formatted = formatFiles(original);
+    const parsed = parseFiles(formatted);
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0].path).toBe("src/types.ts");
+    expect(parsed[0].content.trim()).toBe(original[0].content);
+    expect(parsed[1].path).toBe("src/service.ts");
+    expect(parsed[1].content.trim()).toBe(original[1].content);
+  });
+
+  it("handles empty array", () => {
+    expect(formatFiles([])).toBe("");
+  });
+
+  it("handles single file", () => {
+    const result = formatFiles([{ path: "index.ts", content: "const x = 1;" }]);
+    expect(result).toBe("// --- index.ts ---\nconst x = 1;");
   });
 });
 

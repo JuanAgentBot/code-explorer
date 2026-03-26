@@ -1,8 +1,11 @@
 import {
   analyzeTypes,
+  analyzeTypesProject,
   analyzeCallGraph,
+  analyzeCallGraphProject,
   analyzeModules,
   parseFiles,
+  formatFiles,
 } from "./shared/analyze";
 import {
   renderTypeMap,
@@ -26,6 +29,24 @@ import {
   CALL_GRAPH_SAMPLE,
   MODULE_GRAPH_SAMPLE,
 } from "./shared/sample-code";
+
+// --- Project mode ---
+
+interface ProjectFile {
+  path: string;
+  content: string;
+}
+
+declare global {
+  interface Window {
+    __CODE_EXPLORER_PROJECT__?: ProjectFile[];
+  }
+}
+
+const projectFiles = window.__CODE_EXPLORER_PROJECT__;
+const isProjectMode = !!projectFiles;
+
+const projectCode = isProjectMode ? formatFiles(projectFiles!) : null;
 
 // --- View definitions ---
 
@@ -51,7 +72,9 @@ const VIEWS: Record<ViewType, ViewConfig> = {
     label: "Type Map",
     sample: TYPE_MAP_SAMPLE,
     render: (code) => {
-      const result = analyzeTypes(code);
+      const result = isProjectMode
+        ? analyzeTypesProject(parseFiles(code))
+        : analyzeTypes(code);
       return {
         svg: renderTypeMap(result),
         stats: result.nodes.length
@@ -60,13 +83,15 @@ const VIEWS: Record<ViewType, ViewConfig> = {
       };
     },
     dotColor: "var(--accent)",
-    inputLabel: "input.ts",
+    inputLabel: isProjectMode ? "project" : "input.ts",
   },
   calls: {
     label: "Call Graph",
     sample: CALL_GRAPH_SAMPLE,
     render: (code) => {
-      const result = analyzeCallGraph(code);
+      const result = isProjectMode
+        ? analyzeCallGraphProject(parseFiles(code))
+        : analyzeCallGraph(code);
       return {
         svg: renderCallGraph(result),
         stats: result.nodes.length
@@ -75,7 +100,7 @@ const VIEWS: Record<ViewType, ViewConfig> = {
       };
     },
     dotColor: "var(--orange)",
-    inputLabel: "input.ts",
+    inputLabel: isProjectMode ? "project" : "input.ts",
   },
   modules: {
     label: "Module Graph",
@@ -90,7 +115,7 @@ const VIEWS: Record<ViewType, ViewConfig> = {
       };
     },
     dotColor: "var(--cyan)",
-    inputLabel: "files",
+    inputLabel: isProjectMode ? "project" : "files",
   },
 };
 
@@ -98,11 +123,11 @@ const VIEW_ORDER: ViewType[] = ["types", "calls", "modules"];
 
 // --- App state ---
 
-/** Per-tab code storage. Initialized to sample code. */
+/** Per-tab code storage. In project mode, all tabs share the same code. */
 const codeStore: Record<ViewType, string> = {
-  types: TYPE_MAP_SAMPLE,
-  calls: CALL_GRAPH_SAMPLE,
-  modules: MODULE_GRAPH_SAMPLE,
+  types: projectCode ?? TYPE_MAP_SAMPLE,
+  calls: projectCode ?? CALL_GRAPH_SAMPLE,
+  modules: projectCode ?? MODULE_GRAPH_SAMPLE,
 };
 
 let activeView: ViewType = "types";
@@ -118,17 +143,23 @@ const inputLabel = document.getElementById("input-label")!;
 const diagramDot = document.getElementById("diagram-dot")!;
 const diagramStats = document.getElementById("diagram-stats")!;
 
-// Load initial state from URL hash
-const hashState = readFromHash();
-if (hashState) {
-  activeView = hashState.view;
-  codeStore[activeView] = hashState.code;
+// Load initial state from URL hash (skip in project mode)
+if (!isProjectMode) {
+  const hashState = readFromHash();
+  if (hashState) {
+    activeView = hashState.view;
+    codeStore[activeView] = hashState.code;
+  }
 }
 
 // Create editor
 const editor = createEditor(editorContainer, codeStore[activeView], (code) => {
-  codeStore[activeView] = code;
-  writeToHash(activeView, code);
+  if (isProjectMode) {
+    for (const v of VIEW_ORDER) codeStore[v] = code;
+  } else {
+    codeStore[activeView] = code;
+    writeToHash(activeView, code);
+  }
   renderDiagram(code);
 });
 
@@ -143,7 +174,9 @@ for (const viewId of VIEW_ORDER) {
 }
 
 // Header buttons
-addShareButton();
+if (!isProjectMode) {
+  addShareButton();
+}
 addExportButton();
 addFullscreenButton();
 
@@ -157,7 +190,12 @@ function switchView(view: ViewType) {
   if (view === activeView) return;
 
   // Save current code
-  codeStore[activeView] = editor.getCode();
+  const currentCode = editor.getCode();
+  if (isProjectMode) {
+    for (const v of VIEW_ORDER) codeStore[v] = currentCode;
+  } else {
+    codeStore[activeView] = currentCode;
+  }
 
   // Switch
   activeView = view;
@@ -165,8 +203,10 @@ function switchView(view: ViewType) {
   // Update editor content
   editor.setCode(codeStore[view]);
 
-  // Update URL
-  writeToHash(view, codeStore[view]);
+  // Update URL (skip in project mode)
+  if (!isProjectMode) {
+    writeToHash(view, codeStore[view]);
+  }
 
   // Update UI
   updatePanelLabels();
