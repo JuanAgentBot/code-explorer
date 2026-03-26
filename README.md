@@ -1,49 +1,74 @@
 # code-explorer
 
-Paste TypeScript code, see diagrams. A single-page app with three visualization views, all running in your browser.
+TypeScript code visualization. Paste code or point it at a directory, see type maps, call graphs, and module dependency diagrams.
 
 **[Try it live](https://juanagentbot.github.io/code-explorer/)**
 
-No server, no uploads. The TypeScript compiler runs client-side via CDN.
+## Local projects
+
+Visualize a local codebase:
+
+```bash
+npx @juanagentbot/code-explorer ./src
+```
+
+Reads all `.ts` and `.tsx` files, starts a local server, and opens the browser. All analysis runs client-side. Skips `node_modules`, `dist`, `.git`, and dotfiles.
+
+```
+Options:
+  --port <number>   Server port (default: 3000)
+  --no-open         Don't open the browser
+```
+
+Requires Node.js 18+.
 
 ## Views
 
-Switch between views using the tab bar. Each view has its own editor and sample code.
+Three visualization types, switchable via the tab bar.
 
 ### Type Map
 
-Extracts interfaces, type aliases, classes, and enums. Shows relationships as colored arrows: extends (purple), implements (cyan), and property references (green dashed). UML-like boxes with member details.
+Interfaces, type aliases, classes, and enums. Shows extends (purple), implements (cyan), and property reference (green dashed) relationships. Displays generic type parameters (`Repository<T extends Entity>`). UML-like boxes with member details.
 
 ### Call Graph
 
-Extracts functions, methods, and arrow functions. Shows which functions call which, including `this.method()` calls within classes. Rendered as rounded pills with directed arrows.
+Functions, methods, and arrow functions. Shows which functions call which, including `this.method()` calls within classes. Rounded pills with directed arrows.
 
 ### Module Graph
 
-Define multiple files using `// --- path/to/file.ts ---` separators. See import dependencies between modules, with entry points at the top flowing down to leaf modules.
+File-level import/export dependencies. Define multiple files with `// --- path/to/file.ts ---` separators (or use the CLI for real projects). Handles re-exports and barrel files. Entry points at the top, leaf modules at the bottom.
+
+## Multi-file analysis
+
+All three views support cross-file analysis. A type in `service.ts` extending an interface from `types.ts` shows up correctly in the Type Map. Same for cross-file function calls and import chains.
+
+Uses a two-pass approach: first pass collects all declared names across files, second pass analyzes each file with the full name set so cross-file relationships are detected.
 
 ## Features
 
-- **CodeMirror editor** with TypeScript syntax highlighting, line numbers, bracket matching, and auto-indent
-- **Layered graph layout** using a simplified Sugiyama algorithm (DFS layer assignment, barycenter crossing reduction)
-- **Pan and zoom** on all diagrams (scroll to zoom, drag to pan, double-click to fit)
-- **Fullscreen mode** with zoom controls (+/−/reset)
-- **Click-to-highlight** any node to see its direct neighbors; everything else dims
-- **Shareable URLs** that encode your code in the URL hash via lz-string compression
-- **SVG export** to download any diagram as a standalone file
+- **CodeMirror editor** with TypeScript syntax highlighting, line numbers, bracket matching
+- **Layered graph layout** (simplified Sugiyama: DFS layer assignment, barycenter crossing reduction)
+- **Pan and zoom** (scroll to zoom, drag to pan, double-click to fit)
+- **Fullscreen mode** with zoom controls
+- **Click-to-highlight** a node to see its direct neighbors; everything else dims
+- **Color legends** showing what each color and edge style means
+- **Shareable URLs** encoding code in the URL hash via lz-string
+- **SVG export** to download any diagram
 
 ## Development
 
 ```bash
 npm install
 npm run dev       # Start dev server
-npm run build     # Build for production
+npm run build     # Build web app + CLI
 npm run check     # Typecheck + lint + test
 ```
 
+Build outputs: `dist/web/` (Vite, ~1.9 MB) and `dist/cli.mjs` (esbuild, 3.5 KB).
+
 ## Tests
 
-33 tests covering the analysis module (type extraction, call graph, module dependencies):
+118 tests covering analysis (types, call graphs, modules, multi-file projects), rendering (layout, SVG output, legends), and CLI (file collection, HTML injection, server):
 
 ```bash
 npm test
@@ -51,9 +76,10 @@ npm test
 
 ## Tech
 
-- [TypeScript Compiler API](https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API) loaded from CDN (~3.6 MB, not bundled)
+- [TypeScript Compiler API](https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API) bundled via npm (~1.2 MB gzipped)
 - [CodeMirror 6](https://codemirror.net/) for the editor
 - [lz-string](https://github.com/pieroxy/lz-string) for URL compression
-- [Vite](https://vite.dev) for building (~147 KB gzipped total)
+- [Vite](https://vite.dev) for the web app build
+- [esbuild](https://esbuild.github.io/) for the CLI bundle
 - Hand-built SVG rendering (no chart library)
 - GitHub Pages via GitHub Actions
