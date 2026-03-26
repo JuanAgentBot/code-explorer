@@ -1,8 +1,4 @@
-import type * as TS from "typescript";
-
-// Loaded via CDN script tag as global `ts` in both dev and prod.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ts: typeof TS = (globalThis as any).ts;
+import ts from "typescript";
 
 // --- Type Map ---
 
@@ -121,7 +117,7 @@ export function analyzeTypes(code: string): TypeMapResult {
       const name = node.name.text;
       const members = node.members
         .filter(
-          (m): m is TS.PropertyDeclaration | TS.MethodDeclaration =>
+          (m): m is ts.PropertyDeclaration | ts.MethodDeclaration =>
             ts.isPropertyDeclaration(m) || ts.isMethodDeclaration(m),
         )
         .map((m) => ({
@@ -221,7 +217,7 @@ export function analyzeCallGraph(code: string): CallGraphResult {
   const knownFunctions = new Set<string>();
 
   // Collect all function/method names
-  function collectFunctions(node: TS.Node, className?: string) {
+  function collectFunctions(node: ts.Node, className?: string) {
     if (ts.isFunctionDeclaration(node) && node.name) {
       const name = node.name.text;
       knownFunctions.add(name);
@@ -272,8 +268,8 @@ export function analyzeCallGraph(code: string): CallGraphResult {
   collectFunctions(sourceFile);
 
   // Find calls within each function body
-  function findCalls(body: TS.Node, callerName: string) {
-    function visit(node: TS.Node) {
+  function findCalls(body: ts.Node, callerName: string) {
+    function visit(node: ts.Node) {
       if (ts.isCallExpression(node)) {
         const expr = node.expression;
         let calleeName: string | undefined;
@@ -309,7 +305,7 @@ export function analyzeCallGraph(code: string): CallGraphResult {
     visit(body);
   }
 
-  function extractCalls(node: TS.Node, className?: string) {
+  function extractCalls(node: ts.Node, className?: string) {
     if (ts.isFunctionDeclaration(node) && node.name && node.body) {
       findCalls(node.body, node.name.text);
     }
@@ -473,8 +469,8 @@ export function analyzeModules(
 // --- Helpers ---
 
 function getTypeParams(
-  typeParameters: TS.NodeArray<TS.TypeParameterDeclaration> | undefined,
-  sourceFile: TS.SourceFile,
+  typeParameters: ts.NodeArray<ts.TypeParameterDeclaration> | undefined,
+  sourceFile: ts.SourceFile,
 ): string | undefined {
   if (!typeParameters || typeParameters.length === 0) return undefined;
   const params = typeParameters.map((tp) => {
@@ -490,7 +486,7 @@ function getTypeParams(
   return `<${params.join(", ")}>`;
 }
 
-function getDeclarationName(node: TS.Node): string | undefined {
+function getDeclarationName(node: ts.Node): string | undefined {
   if (
     ts.isFunctionDeclaration(node) ||
     ts.isClassDeclaration(node) ||
@@ -509,7 +505,7 @@ function getDeclarationName(node: TS.Node): string | undefined {
   return undefined;
 }
 
-function hasExportModifier(node: TS.Node): boolean {
+function hasExportModifier(node: ts.Node): boolean {
   if (!ts.canHaveModifiers(node)) return false;
   const modifiers = ts.getModifiers(node);
   return modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ?? false;
